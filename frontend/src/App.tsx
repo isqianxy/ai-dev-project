@@ -1,48 +1,110 @@
-import { useCallback, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 const API_BASE = "/api/v1";
 
-type LogLine = { t: string; raw: string };
+type Role = "user" | "assistant" | "system";
+type ChatItem = { id: string; role: Role; text: string };
+type EventPayload = {
+  type?: string;
+  detail?: {
+    answer?: string;
+    summary?: string;
+    message?: string;
+    phase?: string;
+    provider?: string;
+    model?: string;
+    reason?: string;
+    status?: string;
+  };
+  status?: string;
+};
 
 export default function App() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
-  const [logs, setLogs] = useState<LogLine[]>([]);
+  const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [messages, setMessages] = useState<ChatItem[]>([
+    { id: "welcome", role: "system", text: "已连接 Nexus Agent。输入问题后点击发送。" },
+  ]);
+  const [lastEvent, setLastEvent] = useState<string>("—");
   const esRef = useRef<EventSource | null>(null);
 
-  const appendLog = useCallback((raw: string) => {
-    setLogs((prev) => [...prev, { t: new Date().toISOString(), raw }]);
-  }, []);
+  const canSend = useMemo(() => !busy && input.trim().length > 0, [busy, input]);
 
-  const createSession = async () => {
-    setBusy(true);
-    try {
-      const res = await fetch(`${API_BASE}/sessions`, { method: "POST" });
-      if (!res.ok) throw new Error(await res.text());
-      const data = (await res.json()) as { sessionId: string };
-      setSessionId(data.sessionId);
-      setRunId(null);
-      setLogs([]);
-      appendLog(`会话已创建: ${data.sessionId}`);
-    } catch (e) {
-      appendLog(`错误: ${String(e)}`);
-    } finally {
-      setBusy(false);
-    }
+  const appendMessage = (role: Role, text: string) => {
+    setMessages((prev) => [...prev, { id: `${Date.now()}-${Math.random()}`, role, text }]);
   };
 
-  const submitRun = async () => {
-    if (!sessionId) {
-      appendLog("请先创建会话");
-      return;
-    }
+  const ensureSession = async () => {
+    if (sessionId) return sessionId;
+    const res = await fetch(`${API_BASE}/sessions`, { method: "POST" });
+    if (!res.ok) throw new Error(await res.text());
+    const data = (await res.json()) as { sessionId: string };
+    setSessionId(data.sessionId);
+    appendMessage("system", `会话已创建：${data.sessionId}`);
+    return data.sessionId;
+  };
+
+  const startSse = (newRunId: string) => {
+    esRef.current?.close();
+    setLastEvent(`订阅中 /runs/${newRunId}/events`);
+    const es = new EventSource(`${API_BASE}/runs/${newRunId}/events`);
+    esRef.current = es;
+
+    es.addEventListener("run.started", (ev) => {
+      const payload = JSON.parse((ev as MessageEvent).data) as EventPayload;
+      const provider = payload.detail?.provider ?? "unknown";
+      setLastEvent(`run.started (${provider})`);
+    });
+
+    es.addEventListener("reasoning.step", (ev) => {
+      const payload = JSON.parse((ev as MessageEvent).data) as EventPayload;
+      const phase = payload.detail?.phase ?? "STEP";
+      const summary = payload.detail?.summary ?? "";
+      setLastEvent(`reasoning.step ${phase}`);
+      if (summary) appendMessage("system", `[${phase}] ${summary}`);
+    });
+
+    es.addEventListener("run.completed", (ev) => {
+      const payload = JSON.parse((ev as MessageEvent).data) as EventPayload;
+      const answer = payload.detail?.answer ?? "运行完成，但未返回 answer 字段。";
+      appendMessage("assistant", answer);
+      setLastEvent("run.completed");
+      setBusy(false);
+      es.close();
+    });
+
+    es.addEventListener("run.failed", (ev) => {
+      const payload = JSON.parse((ev as MessageEvent).data) as EventPayload;
+      const reason = payload.detail?.reason ?? "UNKNOWN";
+      const message = payload.detail?.message ?? "运行失败";
+      appendMessage("system", `运行失败(${reason})：${message}`);
+      setLastEvent("run.failed");
+      setBusy(false);
+      es.close();
+    });
+
+    es.onerror = () => {
+      setLastEvent("SSE 连接中断");
+      setBusy(false);
+      es.close();
+    };
+  };
+
+  const sendPrompt = async () => {
+    if (!canSend) return;
+    const prompt = input.trim();
+    setInput("");
     setBusy(true);
+    appendMessage("user", prompt);
+
     try {
-      const res = await fetch(`${API_BASE}/sessions/${sessionId}/runs`, {
+      const sid = await ensureSession();
+      const res = await fetch(`${API_BASE}/sessions/${sid}/runs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: "{}",
+        body: JSON.stringify({ prompt }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -50,80 +112,102 @@ export default function App() {
       }
       const data = (await res.json()) as { runId: string };
       setRunId(data.runId);
-      appendLog(`Run 已创建: ${data.runId}`);
+      startSse(data.runId);
     } catch (e) {
-      appendLog(`错误: ${String(e)}`);
-    } finally {
+      appendMessage("system", `请求失败：${String(e)}`);
       setBusy(false);
     }
   };
 
-  const subscribeSse = () => {
-    if (!runId) {
-      appendLog("请先提交任务以获取 runId");
-      return;
-    }
-    esRef.current?.close();
-    setLogs([]);
-    appendLog(`订阅 SSE: /runs/${runId}/events`);
-    const es = new EventSource(`${API_BASE}/runs/${runId}/events`);
-    esRef.current = es;
-
-    const onAny = (ev: MessageEvent) => {
-      appendLog(`[event] ${(ev as MessageEvent & { type?: string }).type ?? "message"} ${ev.data}`);
-    };
-
-    es.addEventListener("run.started", onAny);
-    es.addEventListener("reasoning.step", onAny);
-    es.addEventListener("run.completed", onAny);
-    es.onerror = () => {
-      appendLog("SSE 连接错误或已结束");
-      es.close();
-    };
-  };
-
   return (
-    <div style={{ fontFamily: "system-ui", padding: 24, maxWidth: 960 }}>
-      <h1>Nexus Agent — M1 骨架</h1>
-      <p style={{ color: "#444" }}>
-        本地先启动后端（端口 8080），再执行 <code>npm run dev</code>。本页通过 Vite 代理访问{" "}
-        <code>/api</code>。
+    <div style={{ fontFamily: "system-ui", padding: 24, maxWidth: 900, margin: "0 auto" }}>
+      <h1>Nexus Agent 聊天</h1>
+      <p style={{ color: "#666", marginTop: -6 }}>
+        当前页面已支持：输入问题 → 自动创建 run → 自动订阅 SSE → 渲染模型输出。
       </p>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-        <button type="button" disabled={busy} onClick={createSession}>
-          1. 创建会话
-        </button>
-        <button type="button" disabled={busy || !sessionId} onClick={submitRun}>
-          2. 提交空任务
-        </button>
-        <button type="button" disabled={!runId} onClick={subscribeSse}>
-          3. 订阅 SSE（Mock 事件）
-        </button>
-      </div>
-      <div style={{ fontSize: 14 }}>
+
+      <div style={{ marginBottom: 12, fontSize: 13, color: "#444" }}>
         <div>
-          <strong>sessionId</strong>: {sessionId ?? "—"}
+          <strong>sessionId</strong>: {sessionId ?? "未创建"}
         </div>
         <div>
           <strong>runId</strong>: {runId ?? "—"}
         </div>
+        <div>
+          <strong>lastEvent</strong>: {lastEvent}
+        </div>
       </div>
-      <pre
+
+      <div
         style={{
-          marginTop: 16,
-          background: "#111",
-          color: "#e0e0e0",
+          border: "1px solid #ddd",
+          borderRadius: 8,
           padding: 12,
-          minHeight: 200,
+          minHeight: 360,
+          background: "#fafafa",
+          marginBottom: 12,
           overflow: "auto",
         }}
       >
-        {logs.map((l) => (
-          <div key={l.t + l.raw}>
-            [{l.t}] {l.raw}
+        {messages.map((m) => (
+          <div
+            key={m.id}
+            style={{
+              marginBottom: 10,
+              display: "flex",
+              justifyContent:
+                m.role === "user" ? "flex-end" : "flex-start",
+            }}
+          >
+            <div
+              style={{
+                maxWidth: "80%",
+                whiteSpace: "pre-wrap",
+                padding: "8px 10px",
+                borderRadius: 8,
+                background:
+                  m.role === "user"
+                    ? "#dff3ff"
+                    : m.role === "assistant"
+                    ? "#ecffe7"
+                    : "#f1f1f1",
+              }}
+            >
+              {m.text}
+            </div>
           </div>
         ))}
-      </pre>
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void sendPrompt();
+            }
+          }}
+          placeholder="输入你的问题，例如：请总结今天的待办重点"
+          style={{
+            flex: 1,
+            border: "1px solid #ccc",
+            borderRadius: 8,
+            padding: "10px 12px",
+            fontSize: 14,
+          }}
+          disabled={busy}
+        />
+        <button
+          type="button"
+          onClick={() => void sendPrompt()}
+          disabled={!canSend}
+          style={{ minWidth: 90 }}
+        >
+          {busy ? "处理中..." : "发送"}
+        </button>
+      </div>
     </div>
   );
 }
