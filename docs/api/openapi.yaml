@@ -1,0 +1,111 @@
+openapi: 3.0.3
+info:
+  title: Nexus Agent API
+  version: 0.1.0
+  description: M1 最小契约（会话、运行、SSE 事件流）；后续里程碑扩展字段需更新本文件并记入 changelog。
+
+servers:
+  - url: http://localhost:8080
+    description: 本地后端
+
+paths:
+  /api/v1/sessions:
+    post:
+      summary: 创建会话
+      operationId: createSession
+      responses:
+        "201":
+          description: 已创建
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateSessionResponse"
+
+  /api/v1/sessions/{sessionId}/runs:
+    post:
+      summary: 提交一次运行（M1 可为空任务）
+      operationId: createRun
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: 已创建运行
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateRunResponse"
+        "404":
+          description: 会话不存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorBody"
+
+  /api/v1/runs/{runId}/events:
+    get:
+      summary: 订阅运行事件（SSE，text/event-stream）
+      operationId: subscribeRunEvents
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: SSE 流
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "404":
+          description: 运行不存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorBody"
+
+components:
+  schemas:
+    CreateSessionResponse:
+      type: object
+      required: [sessionId, createdAt]
+      properties:
+        sessionId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateRunResponse:
+      type: object
+      required: [runId, sessionId, status]
+      properties:
+        runId:
+          type: string
+        sessionId:
+          type: string
+        status:
+          type: string
+          description: 运行状态（M1 为 PENDING/STREAMING/COMPLETED 等）
+
+    ApiErrorBody:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        retryable:
+          type: boolean
+        runId:
+          type: string
+          nullable: true
+        stepId:
+          type: string
+          nullable: true
