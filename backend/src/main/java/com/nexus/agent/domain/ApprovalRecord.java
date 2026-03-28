@@ -2,10 +2,13 @@ package com.nexus.agent.domain;
 
 import java.time.Instant;
 
-public record RunRecord(
+public record ApprovalRecord(
+        String approvalId,
         String runId,
         String sessionId,
+        String action,
         String status,
         Instant createdAt,
-        Instant updatedAt
+        Instant resolvedAt,
+        String resolvedBy
 ) {}

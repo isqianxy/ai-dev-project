@@ -2,10 +2,13 @@ package com.nexus.agent.api.dto;
 
 import java.time.Instant;
 
-public record CreateRunResponse(
+public record GetApprovalResponse(
+        String approvalId,
         String runId,
         String sessionId,
+        String action,
         String status,
         Instant createdAt,
-        Instant updatedAt
+        Instant resolvedAt,
+        String resolvedBy
 ) {}

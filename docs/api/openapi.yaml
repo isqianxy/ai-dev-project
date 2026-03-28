@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Nexus Agent API
-  version: 0.1.0
-  description: M1 最小契约（会话、运行、SSE 事件流）；后续里程碑扩展字段需更新本文件并记入 changelog。
+  version: 0.2.0
+  description: M2 最小可用契约（Session / Run / Event / Approval）。
 
 servers:
   - url: http://localhost:8080
@@ -23,7 +23,7 @@ paths:
 
   /api/v1/sessions/{sessionId}/runs:
     post:
-      summary: 提交一次运行（M1 可为空任务）
+      summary: 提交一次运行（M2 仍可为空任务）
       operationId: createRun
       parameters:
         - name: sessionId
@@ -69,6 +69,120 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiErrorBody"
 
+  /api/v1/runs/{runId}:
+    get:
+      summary: 查询运行状态
+      operationId: getRun
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetRunResponse"
+        "404":
+          description: 运行不存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorBody"
+
+  /api/v1/runs/{runId}/approvals:
+    post:
+      summary: 创建审批请求
+      operationId: createApproval
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateApprovalRequest"
+      responses:
+        "201":
+          description: 已创建审批
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalResponse"
+        "404":
+          description: 运行不存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorBody"
+
+  /api/v1/approvals/{approvalId}:
+    get:
+      summary: 查询审批状态
+      operationId: getApproval
+      parameters:
+        - name: approvalId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalResponse"
+        "404":
+          description: 审批不存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorBody"
+
+  /api/v1/approvals/{approvalId}/resolve:
+    post:
+      summary: 确认审批（同意/拒绝）
+      operationId: resolveApproval
+      parameters:
+        - name: approvalId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveApprovalRequest"
+      responses:
+        "200":
+          description: 确认成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalResponse"
+        "400":
+          description: 入参非法或重复确认
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorBody"
+        "404":
+          description: 审批不存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorBody"
+
 components:
   schemas:
     CreateSessionResponse:
@@ -83,7 +197,7 @@ components:
 
     CreateRunResponse:
       type: object
-      required: [runId, sessionId, status]
+      required: [runId, sessionId, status, createdAt, updatedAt]
       properties:
         runId:
           type: string
@@ -91,7 +205,61 @@ components:
           type: string
         status:
           type: string
-          description: 运行状态（M1 为 PENDING/STREAMING/COMPLETED 等）
+          description: 运行状态（PENDING/STREAMING/COMPLETED）
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    GetRunResponse:
+      allOf:
+        - $ref: "#/components/schemas/CreateRunResponse"
+
+    CreateApprovalRequest:
+      type: object
+      properties:
+        action:
+          type: string
+          description: 审批动作名称，默认 WRITE_OPERATION
+
+    ResolveApprovalRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [APPROVED, REJECTED]
+        resolvedBy:
+          type: string
+          description: 确认人，默认 system
+
+    ApprovalResponse:
+      type: object
+      required: [approvalId, runId, sessionId, action, status, createdAt]
+      properties:
+        approvalId:
+          type: string
+        runId:
+          type: string
+        sessionId:
+          type: string
+        action:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED]
+        createdAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        resolvedBy:
+          type: string
+          nullable: true
 
     ApiErrorBody:
       type: object

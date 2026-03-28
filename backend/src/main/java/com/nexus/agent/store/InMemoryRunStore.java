@@ -16,7 +16,8 @@ public class InMemoryRunStore {
 
     public RunRecord create(String sessionId) {
         String id = UUID.randomUUID().toString();
-        RunRecord r = new RunRecord(id, sessionId, "PENDING", Instant.now());
+        Instant now = Instant.now();
+        RunRecord r = new RunRecord(id, sessionId, "PENDING", now, now);
         runs.put(id, r);
         return r;
     }
@@ -26,10 +27,10 @@ public class InMemoryRunStore {
     }
 
     public void markStreaming(String runId) {
-        runs.computeIfPresent(runId, (k, v) -> new RunRecord(v.runId(), v.sessionId(), "STREAMING", v.createdAt()));
+        runs.computeIfPresent(runId, (k, v) -> new RunRecord(v.runId(), v.sessionId(), "STREAMING", v.createdAt(), Instant.now()));
     }
 
     public void markCompleted(String runId) {
-        runs.computeIfPresent(runId, (k, v) -> new RunRecord(v.runId(), v.sessionId(), "COMPLETED", v.createdAt()));
+        runs.computeIfPresent(runId, (k, v) -> new RunRecord(v.runId(), v.sessionId(), "COMPLETED", v.createdAt(), Instant.now()));
     }
 }

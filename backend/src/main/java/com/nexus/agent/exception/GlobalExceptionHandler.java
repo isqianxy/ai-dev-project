@@ -9,6 +9,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ApiErrorBody> handleBadRequest(BadRequestException e) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiErrorBody.of(e.getCode(), e.getMessage(), false));
+    }
+
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ApiErrorBody> handleNotFound(NotFoundException e) {
         return ResponseEntity
