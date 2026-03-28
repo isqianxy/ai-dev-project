@@ -1,0 +1,45 @@
+---
+alwaysApply: true
+---
+
+# Git 协作规范
+
+1. 不允许主动执行 git 操作（commit / push / merge / reset）
+
+2. 每次完成修改后，必须输出：
+   - 修改文件列表
+   - 修改内容摘要
+   - 修改原因
+
+3. 所有修改必须是“最小变更”：
+   - 不得修改无关文件
+   - 不得大范围重构（除非明确要求）
+
+4. 涉及多个模块时：
+   - 必须分步骤执行
+   - 每一步单独说明
+
+5. 修改前必须说明：
+   - 修改目标
+   - 影响范围
+
+6. 若需求不明确：
+   - 禁止修改代码
+   - 必须先询问
+
+7. 严格遵守当前阶段（CURRENT_STAGE.md）：
+   - 不允许越阶段开发
+   
+# Commit 辅助规范
+
+每次修改完成后，请额外输出：
+
+建议的 git commit message（遵循规范）：
+
+格式：
+type(scope): description
+
+示例：
+feat(prd): add user login requirement
+fix(api): correct user endpoint response
+refactor(backend): optimize service layer

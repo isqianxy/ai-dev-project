@@ -1,0 +1,15 @@
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# 后端构建产物
+backend/target/
+
+# 前端构建产物
+frontend/node_modules/
+frontend/dist/
+frontend/build/
