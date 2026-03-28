@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Nexus Agent API
-  version: 0.2.0
-  description: M2 最小可用契约（Session / Run / Event / Approval）。
+  version: 0.3.0
+  description: M3 最小可用契约（Session / Run / Event / Approval + ReAct v0）。
 
 servers:
   - url: http://localhost:8080
@@ -23,7 +23,7 @@ paths:
 
   /api/v1/sessions/{sessionId}/runs:
     post:
-      summary: 提交一次运行（M2 仍可为空任务）
+      summary: 提交一次运行（M3：支持传入 prompt）
       operationId: createRun
       parameters:
         - name: sessionId
@@ -31,6 +31,12 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRunRequest"
       responses:
         "201":
           description: 已创建运行
@@ -47,7 +53,7 @@ paths:
 
   /api/v1/runs/{runId}/events:
     get:
-      summary: 订阅运行事件（SSE，text/event-stream）
+      summary: 订阅运行事件（SSE，text/event-stream，M3 为 ReAct v0）
       operationId: subscribeRunEvents
       parameters:
         - name: runId
@@ -57,7 +63,7 @@ paths:
             type: string
       responses:
         "200":
-          description: SSE 流
+          description: SSE 流（可能事件：run.started / reasoning.step / run.completed / run.failed）
           content:
             text/event-stream:
               schema:
@@ -205,7 +211,7 @@ components:
           type: string
         status:
           type: string
-          description: 运行状态（PENDING/STREAMING/COMPLETED）
+          description: 运行状态（PENDING/STREAMING/COMPLETED/FAILED）
         createdAt:
           type: string
           format: date-time
@@ -216,6 +222,13 @@ components:
     GetRunResponse:
       allOf:
         - $ref: "#/components/schemas/CreateRunResponse"
+
+    CreateRunRequest:
+      type: object
+      properties:
+        prompt:
+          type: string
+          description: 推理输入文本；包含 UNSOLVABLE 可触发不可解终止（仅 M3 规则引擎测试用途）
 
     CreateApprovalRequest:
       type: object

@@ -25,7 +25,7 @@ class ApiSmokeTest {
 
         ResponseEntity<JsonNode> runRes = restTemplate.postForEntity(
                 "/api/v1/sessions/" + sessionId + "/runs",
-                null,
+                java.util.Map.of("prompt", "hello"),
                 JsonNode.class
         );
         assertThat(runRes.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -39,7 +39,7 @@ class ApiSmokeTest {
     void createRun_unknownSession_returns404() {
         ResponseEntity<JsonNode> runRes = restTemplate.postForEntity(
                 "/api/v1/sessions/00000000-0000-0000-0000-000000000000/runs",
-                null,
+                java.util.Map.of("prompt", "x"),
                 JsonNode.class
         );
         assertThat(runRes.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
@@ -52,7 +52,7 @@ class ApiSmokeTest {
         String sessionId = sessionRes.getBody().get("sessionId").asText();
         ResponseEntity<JsonNode> runRes = restTemplate.postForEntity(
                 "/api/v1/sessions/" + sessionId + "/runs",
-                null,
+                java.util.Map.of("prompt", "approval flow"),
                 JsonNode.class
         );
         String runId = runRes.getBody().get("runId").asText();
@@ -83,5 +83,27 @@ class ApiSmokeTest {
         assertThat(resolveRes.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(resolveRes.getBody().get("status").asText()).isEqualTo("APPROVED");
         assertThat(resolveRes.getBody().get("resolvedBy").asText()).isEqualTo("tester");
+    }
+
+    @Test
+    void runEvents_unsolvablePrompt_shouldMarkFailed() {
+        ResponseEntity<JsonNode> sessionRes = restTemplate.postForEntity("/api/v1/sessions", null, JsonNode.class);
+        String sessionId = sessionRes.getBody().get("sessionId").asText();
+
+        ResponseEntity<JsonNode> runRes = restTemplate.postForEntity(
+                "/api/v1/sessions/" + sessionId + "/runs",
+                java.util.Map.of("prompt", "UNSOLVABLE"),
+                JsonNode.class
+        );
+        String runId = runRes.getBody().get("runId").asText();
+
+        // 阻塞读取一次 SSE，触发规则引擎执行并终止
+        ResponseEntity<String> sseRes = restTemplate.getForEntity("/api/v1/runs/" + runId + "/events", String.class);
+        assertThat(sseRes.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(sseRes.getBody()).contains("event:run.failed");
+
+        ResponseEntity<JsonNode> getRunRes = restTemplate.getForEntity("/api/v1/runs/" + runId, JsonNode.class);
+        assertThat(getRunRes.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(getRunRes.getBody().get("status").asText()).isEqualTo("FAILED");
     }
 }

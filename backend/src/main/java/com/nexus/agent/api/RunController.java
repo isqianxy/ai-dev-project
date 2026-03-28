@@ -2,12 +2,13 @@ package com.nexus.agent.api;
 
 import com.nexus.agent.api.dto.CreateApprovalRequest;
 import com.nexus.agent.api.dto.CreateApprovalResponse;
+import com.nexus.agent.api.dto.CreateRunRequest;
 import com.nexus.agent.api.dto.CreateRunResponse;
 import com.nexus.agent.api.dto.GetRunResponse;
 import com.nexus.agent.domain.ApprovalRecord;
 import com.nexus.agent.domain.RunRecord;
 import com.nexus.agent.exception.NotFoundException;
-import com.nexus.agent.service.MockRunEventService;
+import com.nexus.agent.service.ReasoningEngineService;
 import com.nexus.agent.store.InMemoryApprovalStore;
 import com.nexus.agent.store.InMemoryRunStore;
 import com.nexus.agent.store.InMemorySessionStore;
@@ -31,26 +32,30 @@ public class RunController {
     private final InMemorySessionStore sessionStore;
     private final InMemoryRunStore runStore;
     private final InMemoryApprovalStore approvalStore;
-    private final MockRunEventService mockRunEventService;
+    private final ReasoningEngineService reasoningEngineService;
 
     public RunController(
             InMemorySessionStore sessionStore,
             InMemoryRunStore runStore,
             InMemoryApprovalStore approvalStore,
-            MockRunEventService mockRunEventService
+            ReasoningEngineService reasoningEngineService
     ) {
         this.sessionStore = sessionStore;
         this.runStore = runStore;
         this.approvalStore = approvalStore;
-        this.mockRunEventService = mockRunEventService;
+        this.reasoningEngineService = reasoningEngineService;
     }
 
     @PostMapping("/sessions/{sessionId}/runs")
     @ResponseStatus(HttpStatus.CREATED)
-    public CreateRunResponse createRun(@PathVariable String sessionId) {
+    public CreateRunResponse createRun(
+            @PathVariable String sessionId,
+            @RequestBody(required = false) CreateRunRequest body
+    ) {
         sessionStore.find(sessionId)
                 .orElseThrow(() -> new NotFoundException("SESSION_NOT_FOUND", "会话不存在: " + sessionId));
-        RunRecord run = runStore.create(sessionId);
+        String prompt = body != null && body.prompt() != null ? body.prompt() : "";
+        RunRecord run = runStore.create(sessionId, prompt);
         return new CreateRunResponse(run.runId(), sessionId, run.status(), run.createdAt(), run.updatedAt());
     }
 
@@ -92,7 +97,7 @@ public class RunController {
                 .orElseThrow(() -> new NotFoundException("RUN_NOT_FOUND", "运行不存在: " + runId));
 
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
-        mockRunEventService.streamMockEvents(emitter, run.runId(), run.sessionId());
+        reasoningEngineService.stream(emitter, run);
         return emitter;
     }
 }

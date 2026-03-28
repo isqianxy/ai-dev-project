@@ -14,10 +14,11 @@ public class InMemoryRunStore {
 
     private final Map<String, RunRecord> runs = new ConcurrentHashMap<>();
 
-    public RunRecord create(String sessionId) {
+    public RunRecord create(String sessionId, String prompt) {
         String id = UUID.randomUUID().toString();
         Instant now = Instant.now();
-        RunRecord r = new RunRecord(id, sessionId, "PENDING", now, now);
+        String normalizedPrompt = prompt == null ? "" : prompt;
+        RunRecord r = new RunRecord(id, sessionId, normalizedPrompt, "PENDING", now, now);
         runs.put(id, r);
         return r;
     }
@@ -27,10 +28,14 @@ public class InMemoryRunStore {
     }
 
     public void markStreaming(String runId) {
-        runs.computeIfPresent(runId, (k, v) -> new RunRecord(v.runId(), v.sessionId(), "STREAMING", v.createdAt(), Instant.now()));
+        runs.computeIfPresent(runId, (k, v) -> new RunRecord(v.runId(), v.sessionId(), v.prompt(), "STREAMING", v.createdAt(), Instant.now()));
     }
 
     public void markCompleted(String runId) {
-        runs.computeIfPresent(runId, (k, v) -> new RunRecord(v.runId(), v.sessionId(), "COMPLETED", v.createdAt(), Instant.now()));
+        runs.computeIfPresent(runId, (k, v) -> new RunRecord(v.runId(), v.sessionId(), v.prompt(), "COMPLETED", v.createdAt(), Instant.now()));
+    }
+
+    public void markFailed(String runId) {
+        runs.computeIfPresent(runId, (k, v) -> new RunRecord(v.runId(), v.sessionId(), v.prompt(), "FAILED", v.createdAt(), Instant.now()));
     }
 }
