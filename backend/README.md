@@ -41,7 +41,7 @@ mvn -pl backend spring-boot:run
 
 处理：使用上文 **方式 A** 或 **方式 B**。
 
-## 当前能力（M1~M5）
+## 当前能力（M1~M5+）
 
 - `POST /api/v1/sessions`：创建会话（内存存储，重启丢失）
 - `POST /api/v1/sessions/{sessionId}/runs`：创建一次运行
@@ -58,6 +58,9 @@ mvn -pl backend spring-boot:run
   - `GET /api/v1/tools`：查看工具清单
   - `POST /api/v1/tools/{toolName}/invoke`：调试调用工具
   - 在 `prompt` 中可使用 `tool://<toolName> <json>` 触发工具（示例：`tool://echo {"text":"你好"}`）
+- 扩展基石（M5+ 第 1 步）：
+  - 已引入统一 `ToolProvider` 路由层，当前默认 provider 为 `local`
+  - 预留 `agent.mcp.enabled` 开关（默认 `false`），用于后续接入 MCP 工具提供方
 
 ## 测试
 

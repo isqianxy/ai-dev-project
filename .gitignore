@@ -8,6 +8,7 @@ Thumbs.db
 
 # 后端构建产物
 backend/target/
+backend/src/main/resources/application-local.yml
 
 # 前端构建产物
 frontend/node_modules/

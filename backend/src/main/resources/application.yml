@@ -14,3 +14,5 @@ agent:
     timeout-ms: 30000
     max-retries: 2
     stream: true
+  mcp:
+    enabled: false

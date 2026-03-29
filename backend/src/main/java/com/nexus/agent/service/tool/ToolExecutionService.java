@@ -1,60 +1,32 @@
 package com.nexus.agent.service.tool;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexus.agent.exception.BadRequestException;
 import org.springframework.stereotype.Service;
+
+import java.util.Comparator;
+import java.util.List;
 
 @Service
 public class ToolExecutionService {
 
-    private final ToolRegistry toolRegistry;
-    private final ObjectMapper objectMapper;
+    private final List<ToolProvider> providers;
 
-    public ToolExecutionService(ToolRegistry toolRegistry, ObjectMapper objectMapper) {
-        this.toolRegistry = toolRegistry;
-        this.objectMapper = objectMapper;
+    public ToolExecutionService(List<ToolProvider> providers) {
+        this.providers = providers;
     }
 
     public ToolExecutionResult execute(String toolName, String argumentsJson) {
-        ToolDefinition definition = toolRegistry.find(toolName)
+        ToolProvider provider = providers.stream()
+                .filter(p -> p.supports(toolName))
+                .findFirst()
                 .orElseThrow(() -> new BadRequestException("TOOL_NOT_FOUND", "工具不存在: " + toolName));
-
-        try {
-            Object output;
-            if (definition.parameterType() == null) {
-                output = definition.method().invoke(definition.bean());
-            } else {
-                Object argsObj = parseArguments(argumentsJson, definition.parameterType());
-                output = definition.method().invoke(definition.bean(), argsObj);
-            }
-            return new ToolExecutionResult(true, toolName, stringify(output), null);
-        } catch (BadRequestException e) {
-            throw e;
-        } catch (Exception e) {
-            return new ToolExecutionResult(false, toolName, null, e.getMessage());
-        }
+        return provider.execute(toolName, argumentsJson);
     }
 
-    private Object parseArguments(String argumentsJson, Class<?> targetType) {
-        try {
-            String json = argumentsJson == null || argumentsJson.isBlank() ? "{}" : argumentsJson;
-            return objectMapper.readValue(json, targetType);
-        } catch (Exception e) {
-            throw new BadRequestException("TOOL_ARGUMENTS_INVALID", "工具参数解析失败: " + e.getMessage());
-        }
-    }
-
-    private String stringify(Object value) {
-        if (value == null) {
-            return "";
-        }
-        if (value instanceof String s) {
-            return s;
-        }
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (Exception e) {
-            return String.valueOf(value);
-        }
+    public List<ToolDescriptor> listTools() {
+        return providers.stream()
+                .flatMap(p -> p.listTools().stream())
+                .sorted(Comparator.comparing(ToolDescriptor::name))
+                .toList();
     }
 }

@@ -34,6 +34,11 @@
       "name": "agent.llm.stream",
       "type": "java.lang.Boolean",
       "description": "是否启用流式输出。"
+    },
+    {
+      "name": "agent.mcp.enabled",
+      "type": "java.lang.Boolean",
+      "description": "是否启用 MCP 工具提供方（当前为预留占位）。"
     }
   ]
 }
