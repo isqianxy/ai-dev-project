@@ -41,17 +41,49 @@ mvn -pl backend spring-boot:run
 
 处理：使用上文 **方式 A** 或 **方式 B**。
 
-## M1 能力
+## 当前能力（M1~M5）
 
 - `POST /api/v1/sessions`：创建会话（内存存储，重启丢失）
 - `POST /api/v1/sessions/{sessionId}/runs`：创建一次运行
-- `GET /api/v1/runs/{runId}/events`：SSE，推送 **Mock** 事件（不调用 LLM）
+- `GET /api/v1/runs/{runId}/events`：SSE 推理事件（ReAct v0）
+- `GET /api/v1/runs/{runId}`：查询运行状态
+- 审批流程：
+  - `POST /api/v1/runs/{runId}/approvals`
+  - `GET /api/v1/approvals/{approvalId}`
+  - `POST /api/v1/approvals/{approvalId}/resolve`
+- 模型提供方切换：
+  - `agent.llm.provider=mock`：规则/Mock 路径（默认）
+  - `agent.llm.provider=deepseek`：真实模型调用路径（M4，基于 LangChain4j）
+- 工具系统（M5）：
+  - `GET /api/v1/tools`：查看工具清单
+  - `POST /api/v1/tools/{toolName}/invoke`：调试调用工具
+  - 在 `prompt` 中可使用 `tool://<toolName> <json>` 触发工具（示例：`tool://echo {"text":"你好"}`）
 
 ## 测试
 
 ```bash
 mvn test
 ```
+
+## M4 大模型配置（DeepSeek）
+
+已预留本地配置文件：`src/main/resources/application-local.yml`。
+
+你只需填写以下字段：
+
+- `agent.llm.provider=deepseek`
+- `agent.llm.base-url=https://api.deepseek.com/v1`
+- `agent.llm.api-key=<你的Key>`
+- `agent.llm.model=deepseek-chat`（或 `deepseek-reasoner`）
+
+本地按 `local` profile 启动：
+
+```bash
+cd backend
+mvn spring-boot:run "-Dspring-boot.run.profiles=local"
+```
+
+实现说明：当前 DeepSeek 通过 `LangChain4j OpenAiChatModel` 接入，使用 OpenAI 兼容接口（`base-url` 一般为 `https://api.deepseek.com/v1`）。
 
 ## 说明
 

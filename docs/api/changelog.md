@@ -1,5 +1,22 @@
 # API 变更记录
 
+## 0.5.0（M5）
+
+- 新增工具系统接口：
+  - `GET /api/v1/tools`（工具清单）
+  - `POST /api/v1/tools/{toolName}/invoke`（调试调用）
+- SSE 新增事件：`tool.invoked`、`tool.result`。
+- `CreateRunRequest.prompt` 支持工具触发语法：`tool://<toolName> <json>`。
+- 破坏性变更：无（向后兼容）。
+
+## 0.4.0（M4）
+
+- 接入模型适配层：支持 `agent.llm.provider=mock|deepseek` 切换。
+- 在 `local` profile 下可调用 DeepSeek（`base-url/api-key/model`）。
+- DeepSeek 客户端实现改为 `LangChain4j OpenAiChatModel`（OpenAI 兼容协议）。
+- SSE 事件协议不变；`run.completed` 的 `detail` 增加 `provider/model/answer`（行为增强）。
+- 破坏性变更：无（向后兼容）。
+
 ## 0.3.0（M3）
 
 - `POST /api/v1/sessions/{sessionId}/runs` 新增可选请求体：`CreateRunRequest.prompt`。

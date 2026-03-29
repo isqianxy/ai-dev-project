@@ -106,4 +106,41 @@ class ApiSmokeTest {
         assertThat(getRunRes.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(getRunRes.getBody().get("status").asText()).isEqualTo("FAILED");
     }
+
+    @Test
+    void listTools_andInvokeEcho_shouldWork() {
+        ResponseEntity<JsonNode> listRes = restTemplate.getForEntity("/api/v1/tools", JsonNode.class);
+        assertThat(listRes.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(listRes.getBody().isArray()).isTrue();
+        assertThat(listRes.getBody().toString()).contains("echo");
+        assertThat(listRes.getBody().toString()).contains("current_time");
+
+        ResponseEntity<JsonNode> invokeRes = restTemplate.postForEntity(
+                "/api/v1/tools/echo/invoke",
+                java.util.Map.of("argumentsJson", "{\"text\":\"tool-ok\"}"),
+                JsonNode.class
+        );
+        assertThat(invokeRes.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(invokeRes.getBody().get("success").asBoolean()).isTrue();
+        assertThat(invokeRes.getBody().get("output").asText()).isEqualTo("tool-ok");
+    }
+
+    @Test
+    void runEvents_toolPrompt_shouldEmitToolEvents() {
+        ResponseEntity<JsonNode> sessionRes = restTemplate.postForEntity("/api/v1/sessions", null, JsonNode.class);
+        String sessionId = sessionRes.getBody().get("sessionId").asText();
+
+        ResponseEntity<JsonNode> runRes = restTemplate.postForEntity(
+                "/api/v1/sessions/" + sessionId + "/runs",
+                java.util.Map.of("prompt", "tool://echo {\"text\":\"hello-tool\"}"),
+                JsonNode.class
+        );
+        String runId = runRes.getBody().get("runId").asText();
+
+        ResponseEntity<String> sseRes = restTemplate.getForEntity("/api/v1/runs/" + runId + "/events", String.class);
+        assertThat(sseRes.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(sseRes.getBody()).contains("event:tool.invoked");
+        assertThat(sseRes.getBody()).contains("event:tool.result");
+        assertThat(sseRes.getBody()).contains("event:run.completed");
+    }
 }

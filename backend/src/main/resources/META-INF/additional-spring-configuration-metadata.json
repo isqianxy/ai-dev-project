@@ -1,0 +1,39 @@
+{
+  "properties": [
+    {
+      "name": "agent.llm.provider",
+      "type": "java.lang.String",
+      "description": "模型提供方标识（mock/deepseek）。"
+    },
+    {
+      "name": "agent.llm.base-url",
+      "type": "java.lang.String",
+      "description": "模型服务基础地址。"
+    },
+    {
+      "name": "agent.llm.api-key",
+      "type": "java.lang.String",
+      "description": "模型服务访问密钥。"
+    },
+    {
+      "name": "agent.llm.model",
+      "type": "java.lang.String",
+      "description": "模型名称。"
+    },
+    {
+      "name": "agent.llm.timeout-ms",
+      "type": "java.lang.Integer",
+      "description": "请求超时时间（毫秒）。"
+    },
+    {
+      "name": "agent.llm.max-retries",
+      "type": "java.lang.Integer",
+      "description": "最大重试次数。"
+    },
+    {
+      "name": "agent.llm.stream",
+      "type": "java.lang.Boolean",
+      "description": "是否启用流式输出。"
+    }
+  ]
+}

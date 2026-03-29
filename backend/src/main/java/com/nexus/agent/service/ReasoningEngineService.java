@@ -1,6 +1,11 @@
 package com.nexus.agent.service;
 
+import com.nexus.agent.config.LlmProperties;
 import com.nexus.agent.domain.RunRecord;
+import com.nexus.agent.service.llm.LlmReply;
+import com.nexus.agent.service.llm.LlmService;
+import com.nexus.agent.service.tool.ToolExecutionResult;
+import com.nexus.agent.service.tool.ToolExecutionService;
 import com.nexus.agent.store.InMemoryRunStore;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -12,7 +17,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
- * M3：ReAct 推理引擎 v0（规则驱动，不接真实 LLM）。
+ * M4：ReAct 推理引擎 v0（支持 mock / deepseek 模型适配）。
  */
 @Service
 public class ReasoningEngineService {
@@ -23,10 +28,22 @@ public class ReasoningEngineService {
 
     private final Executor asyncExecutor;
     private final InMemoryRunStore runStore;
+    private final LlmService llmService;
+    private final LlmProperties llmProperties;
+    private final ToolExecutionService toolExecutionService;
 
-    public ReasoningEngineService(Executor asyncExecutor, InMemoryRunStore runStore) {
+    public ReasoningEngineService(
+            Executor asyncExecutor,
+            InMemoryRunStore runStore,
+            LlmService llmService,
+            LlmProperties llmProperties,
+            ToolExecutionService toolExecutionService
+    ) {
         this.asyncExecutor = asyncExecutor;
         this.runStore = runStore;
+        this.llmService = llmService;
+        this.llmProperties = llmProperties;
+        this.toolExecutionService = toolExecutionService;
     }
 
     public void stream(SseEmitter emitter, RunRecord run) {
@@ -34,72 +51,251 @@ public class ReasoningEngineService {
         asyncExecutor.execute(() -> {
             Instant startedAt = Instant.now();
             try {
+                String provider = llmService.currentProvider();
                 send(
                         emitter,
                         "run.started",
-                        eventPayload("run.started", run.runId(), run.sessionId(), null, Map.of("status", "RUNNING", "engine", "REACT_V0"))
+                        eventPayload("run.started", run.runId(), run.sessionId(), null, Map.of("status", "RUNNING", "engine", "REACT_V0", "provider", provider))
                 );
 
-                boolean forceUnsolvable = run.prompt().toUpperCase().contains("UNSOLVABLE");
-                for (int step = 1; step <= MAX_STEPS; step++) {
-                    if (elapsedMs(startedAt) > MAX_DURATION_MS) {
-                        fail(emitter, run, "TIMEOUT", "达到最大执行时长，终止运行");
-                        return;
-                    }
-
-                    String phase = PHASES[(step - 1) % PHASES.length];
-                    String stepId = "step-" + step;
-                    send(
-                            emitter,
-                            "reasoning.step",
-                            eventPayload(
-                                    "reasoning.step",
-                                    run.runId(),
-                                    run.sessionId(),
-                                    stepId,
-                                    Map.of(
-                                            "phase", phase,
-                                            "summary", "M3 规则推理步骤",
-                                            "step", step
-                                    )
-                            )
-                    );
-                    sleep(120);
-
-                    if (forceUnsolvable && step >= 3 && "OBSERVE".equals(phase)) {
-                        fail(emitter, run, "UNSOLVABLE", "触发不可解判定，终止运行");
-                        return;
-                    }
-
-                    if (!forceUnsolvable && step == 4) {
-                        send(
-                                emitter,
-                                "reasoning.step",
-                                eventPayload(
-                                        "reasoning.step",
-                                        run.runId(),
-                                        run.sessionId(),
-                                        "step-final",
-                                        Map.of("phase", "FINAL", "summary", "达到完成条件，结束运行")
-                                )
-                        );
-                        runStore.markCompleted(run.runId());
-                        send(emitter, "run.completed", eventPayload("run.completed", run.runId(), run.sessionId(), null, "SUCCEEDED"));
-                        emitter.complete();
-                        return;
-                    }
+                ToolIntent toolIntent = parseToolIntent(run.prompt());
+                if (toolIntent != null) {
+                    runToolLoop(emitter, run, startedAt, toolIntent);
+                    return;
                 }
 
-                fail(emitter, run, "MAX_STEPS", "达到最大步骤数，终止运行");
+                if ("mock".equalsIgnoreCase(provider)) {
+                    runMockLoop(emitter, run, startedAt);
+                    return;
+                }
+
+                runDeepSeekLoop(emitter, run, startedAt);
             } catch (Exception e) {
                 runStore.markFailed(run.runId());
+                String msg = e.getMessage() == null ? "模型调用异常" : e.getMessage();
                 try {
-                    emitter.completeWithError(e);
+                    send(
+                            emitter,
+                            "run.failed",
+                            eventPayload(
+                                    "run.failed",
+                                    run.runId(),
+                                    run.sessionId(),
+                                    null,
+                                    Map.of("status", "FAILED", "reason", "MODEL_ERROR", "message", msg)
+                            )
+                    );
+                    emitter.complete();
                 } catch (Exception ignored) {
                     // emitter 可能已关闭
                 }
             }
         });
+    }
+
+    private void runDeepSeekLoop(SseEmitter emitter, RunRecord run, Instant startedAt) throws IOException {
+        if (elapsedMs(startedAt) > llmProperties.getTimeoutMs()) {
+            fail(emitter, run, "TIMEOUT", "达到最大执行时长，终止运行");
+            return;
+        }
+
+        send(
+                emitter,
+                "reasoning.step",
+                eventPayload(
+                        "reasoning.step",
+                        run.runId(),
+                        run.sessionId(),
+                        "step-1",
+                        Map.of("phase", "THINK", "summary", "调用模型生成推理结果", "provider", llmService.currentProvider())
+                )
+        );
+
+        LlmReply reply = llmService.generate(run.prompt());
+        String preview = abbreviate(reply.content(), 160);
+        send(
+                emitter,
+                "reasoning.step",
+                eventPayload(
+                        "reasoning.step",
+                        run.runId(),
+                        run.sessionId(),
+                        "step-2",
+                        Map.of("phase", "OBSERVE", "summary", preview, "model", reply.model(), "provider", reply.provider())
+                )
+        );
+
+        send(
+                emitter,
+                "reasoning.step",
+                eventPayload(
+                        "reasoning.step",
+                        run.runId(),
+                        run.sessionId(),
+                        "step-final",
+                        Map.of("phase", "FINAL", "summary", "模型已返回结果，结束运行")
+                )
+        );
+
+        runStore.markCompleted(run.runId());
+        send(
+                emitter,
+                "run.completed",
+                eventPayload(
+                        "run.completed",
+                        run.runId(),
+                        run.sessionId(),
+                        null,
+                        Map.of("status", "SUCCEEDED", "answer", reply.content(), "provider", reply.provider(), "model", reply.model())
+                )
+        );
+        emitter.complete();
+    }
+
+    private void runToolLoop(SseEmitter emitter, RunRecord run, Instant startedAt, ToolIntent toolIntent) throws IOException {
+        if (elapsedMs(startedAt) > llmProperties.getTimeoutMs()) {
+            fail(emitter, run, "TIMEOUT", "达到最大执行时长，终止运行");
+            return;
+        }
+
+        send(
+                emitter,
+                "reasoning.step",
+                eventPayload(
+                        "reasoning.step",
+                        run.runId(),
+                        run.sessionId(),
+                        "step-1",
+                        Map.of("phase", "THINK", "summary", "识别到工具调用意图，准备执行工具")
+                )
+        );
+
+        send(
+                emitter,
+                "tool.invoked",
+                eventPayload(
+                        "tool.invoked",
+                        run.runId(),
+                        run.sessionId(),
+                        "step-2",
+                        Map.of("toolName", toolIntent.toolName(), "argumentsJson", toolIntent.argumentsJson())
+                )
+        );
+
+        ToolExecutionResult toolResult = toolExecutionService.execute(toolIntent.toolName(), toolIntent.argumentsJson());
+        Map<String, Object> toolDetail = new LinkedHashMap<>();
+        toolDetail.put("toolName", toolResult.toolName());
+        toolDetail.put("success", toolResult.success());
+        toolDetail.put("output", toolResult.output());
+        toolDetail.put("error", toolResult.error());
+        send(
+                emitter,
+                "tool.result",
+                eventPayload(
+                        "tool.result",
+                        run.runId(),
+                        run.sessionId(),
+                        "step-3",
+                        toolDetail
+                )
+        );
+
+        if (!toolResult.success()) {
+            fail(emitter, run, "TOOL_ERROR", "工具执行失败: " + toolResult.error());
+            return;
+        }
+
+        String synthesisPrompt = """
+                你是一个严谨的软件开发助手。
+                用户请求：%s
+                工具调用结果（%s）：%s
+                请基于工具结果给出最终回答。
+                """.formatted(run.prompt(), toolResult.toolName(), toolResult.output());
+        LlmReply reply = llmService.generate(synthesisPrompt);
+
+        send(
+                emitter,
+                "reasoning.step",
+                eventPayload(
+                        "reasoning.step",
+                        run.runId(),
+                        run.sessionId(),
+                        "step-final",
+                        Map.of("phase", "FINAL", "summary", "工具结果已融合，生成最终回答")
+                )
+        );
+        runStore.markCompleted(run.runId());
+        send(
+                emitter,
+                "run.completed",
+                eventPayload(
+                        "run.completed",
+                        run.runId(),
+                        run.sessionId(),
+                        null,
+                        Map.of(
+                                "status", "SUCCEEDED",
+                                "answer", reply.content(),
+                                "provider", reply.provider(),
+                                "model", reply.model()
+                        )
+                )
+        );
+        emitter.complete();
+    }
+
+    private void runMockLoop(SseEmitter emitter, RunRecord run, Instant startedAt) throws IOException {
+        boolean forceUnsolvable = run.prompt().toUpperCase().contains("UNSOLVABLE");
+        for (int step = 1; step <= MAX_STEPS; step++) {
+            if (elapsedMs(startedAt) > MAX_DURATION_MS) {
+                fail(emitter, run, "TIMEOUT", "达到最大执行时长，终止运行");
+                return;
+            }
+
+            String phase = PHASES[(step - 1) % PHASES.length];
+            String stepId = "step-" + step;
+            send(
+                    emitter,
+                    "reasoning.step",
+                    eventPayload(
+                            "reasoning.step",
+                            run.runId(),
+                            run.sessionId(),
+                            stepId,
+                            Map.of(
+                                    "phase", phase,
+                                    "summary", "M3 规则推理步骤",
+                                    "step", step
+                            )
+                    )
+            );
+            sleep(120);
+
+            if (forceUnsolvable && step >= 3 && "OBSERVE".equals(phase)) {
+                fail(emitter, run, "UNSOLVABLE", "触发不可解判定，终止运行");
+                return;
+            }
+
+            if (!forceUnsolvable && step == 4) {
+                send(
+                        emitter,
+                        "reasoning.step",
+                        eventPayload(
+                                "reasoning.step",
+                                run.runId(),
+                                run.sessionId(),
+                                "step-final",
+                                Map.of("phase", "FINAL", "summary", "达到完成条件，结束运行")
+                        )
+                );
+                runStore.markCompleted(run.runId());
+                send(emitter, "run.completed", eventPayload("run.completed", run.runId(), run.sessionId(), null, "SUCCEEDED"));
+                emitter.complete();
+                return;
+            }
+        }
+
+        fail(emitter, run, "MAX_STEPS", "达到最大步骤数，终止运行");
     }
 
     private void fail(SseEmitter emitter, RunRecord run, String reason, String message) throws IOException {
@@ -155,4 +351,42 @@ public class ReasoningEngineService {
             Thread.currentThread().interrupt();
         }
     }
+
+    private static String abbreviate(String text, int maxLen) {
+        if (text == null) {
+            return "";
+        }
+        if (text.length() <= maxLen) {
+            return text;
+        }
+        return text.substring(0, maxLen) + "...";
+    }
+
+    /**
+     * 约定格式：tool://<toolName> <json>
+     * 示例：tool://echo {"text":"你好"}
+     */
+    private static ToolIntent parseToolIntent(String prompt) {
+        if (prompt == null) {
+            return null;
+        }
+        String trimmed = prompt.trim();
+        String prefix = "tool://";
+        if (!trimmed.startsWith(prefix)) {
+            return null;
+        }
+        String rest = trimmed.substring(prefix.length()).trim();
+        if (rest.isBlank()) {
+            return null;
+        }
+        int blank = rest.indexOf(' ');
+        if (blank < 0) {
+            return new ToolIntent(rest, "{}");
+        }
+        String toolName = rest.substring(0, blank).trim();
+        String args = rest.substring(blank + 1).trim();
+        return new ToolIntent(toolName, args.isBlank() ? "{}" : args);
+    }
+
+    private record ToolIntent(String toolName, String argumentsJson) {}
 }

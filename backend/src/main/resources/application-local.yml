@@ -1,0 +1,16 @@
+spring:
+  config:
+    activate:
+      on-profile: local
+
+# M4 本地模型配置（DeepSeek）
+# 注意：请填入你自己的密钥，不要提交真实密钥到仓库。
+agent:
+  llm:
+    provider: deepseek
+    base-url: https://api.deepseek.com/v1
+    api-key: "sk-22712df616dd42cf90679f62388d299d"
+    model: deepseek-chat
+    timeout-ms: 30000
+    max-retries: 2
+    stream: true

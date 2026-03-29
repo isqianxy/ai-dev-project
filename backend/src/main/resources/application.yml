@@ -4,3 +4,13 @@ server:
 spring:
   application:
     name: nexus-agent
+
+agent:
+  llm:
+    provider: mock
+    base-url: ""
+    api-key: ""
+    model: deepseek-chat
+    timeout-ms: 30000
+    max-retries: 2
+    stream: true
