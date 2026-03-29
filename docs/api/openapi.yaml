@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Nexus Agent API
-  version: 0.5.0
-  description: M5 最小可用契约（Session / Run / Event / Approval + 模型适配 + 工具系统）。
+  version: 0.6.0
+  description: M6 迭代契约（Session / Run / Event / Approval + 模型适配 + 工具系统 + 工具风险元数据）。
 
 servers:
   - url: http://localhost:8080
@@ -276,7 +276,7 @@ components:
 
     ToolInfoResponse:
       type: object
-      required: [name, description, parameterType]
+      required: [name, description, parameterType, riskLevel]
       properties:
         name:
           type: string
@@ -284,6 +284,9 @@ components:
           type: string
         parameterType:
           type: string
+        riskLevel:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
 
     InvokeToolRequest:
       type: object

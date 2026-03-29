@@ -46,6 +46,6 @@ public class ToolController {
     }
 
     private ToolInfoResponse toResponse(ToolDescriptor d) {
-        return new ToolInfoResponse(d.name(), d.description(), d.parameterType());
+        return new ToolInfoResponse(d.name(), d.description(), d.parameterType(), d.riskLevel());
     }
 }

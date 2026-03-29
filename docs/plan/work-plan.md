@@ -12,8 +12,8 @@
 
 ### 当前进度（状态同步）
 
-- **已完成**：M1（骨架）/ M2（契约）/ M3（ReAct v0）/ M4（DeepSeek 模型适配）/ M5（工具系统 v1）/ M5+（ToolProvider 抽象第 1 步）
-- **下一阶段**：M5+（Skill 注入与工具路由策略）→ M6（审批联动）→ M7、M10（RAG）
+- **已完成**：M1（骨架）/ M2（契约）/ M3（ReAct v0）/ M4（DeepSeek 模型适配）/ M5（工具系统 v1）/ M5+（ToolProvider + Skill 注入 + 基础路由/回退）/ M6a（工具风险元数据与高风险拦截）
+- **下一阶段**：M6（审批联动）→ M7、M10（RAG）
 
 ### M1：可运行的最小骨架（不含真实 LLM / 不含真实工具）
 
@@ -81,7 +81,9 @@
 - **回滚点**：Provider 路由可切回本地工具单一路径
 - **当前进展**
   - 已完成：引入 `ToolProvider` 接口、`local` provider 适配、`mcp` provider 占位开关（`agent.mcp.enabled`）
-  - 待完成：Skill 模板注入、工具选择/回退策略细化
+  - 已完成：`Skill` 模板注入（`agent.skill.*`）与 DeepSeek + LangChain4j function calling 主链路（模型主导工具调用）
+  - 已完成：模型函数调用链路的工具事件透传（`tool.invoked` / `tool.result`）到 SSE
+  - 待完成：更丰富的工具选择策略（多工具评分、风险分级、审批联动）
 
 ### M6：安全与人工确认 v1（写工具默认需要审批）
 

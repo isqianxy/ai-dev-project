@@ -14,5 +14,14 @@ agent:
     timeout-ms: 30000
     max-retries: 2
     stream: true
+    function-calling-enabled: true
+  skill:
+    enabled: true
+    general-system-prompt: "你是一个严谨的软件开发助手。请给出准确、可执行、结构清晰的回答。"
+    tool-synthesis-prompt: "你是一个严谨的软件开发助手。请基于工具结果回答用户问题，禁止编造工具未返回的信息。"
+    tool-fallback-prompt: "你是一个严谨的软件开发助手。工具调用失败时，请明确说明不确定性并给出可执行替代建议。"
   mcp:
     enabled: false
+  tool-risk:
+    enabled: true
+    block-level: HIGH

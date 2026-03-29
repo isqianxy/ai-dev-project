@@ -4,6 +4,8 @@ import com.nexus.agent.config.LlmProperties;
 import com.nexus.agent.domain.RunRecord;
 import com.nexus.agent.service.llm.LlmReply;
 import com.nexus.agent.service.llm.LlmService;
+import com.nexus.agent.service.tool.ToolCallEventContext;
+import com.nexus.agent.service.tool.ToolCallObserver;
 import com.nexus.agent.service.tool.ToolExecutionResult;
 import com.nexus.agent.service.tool.ToolExecutionService;
 import com.nexus.agent.store.InMemoryRunStore;
@@ -15,6 +17,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * M4：ReAct 推理引擎 v0（支持 mock / deepseek 模型适配）。
@@ -31,19 +34,25 @@ public class ReasoningEngineService {
     private final LlmService llmService;
     private final LlmProperties llmProperties;
     private final ToolExecutionService toolExecutionService;
+    private final SkillPromptService skillPromptService;
+    private final ToolCallEventContext toolCallEventContext;
 
     public ReasoningEngineService(
             Executor asyncExecutor,
             InMemoryRunStore runStore,
             LlmService llmService,
             LlmProperties llmProperties,
-            ToolExecutionService toolExecutionService
+            ToolExecutionService toolExecutionService,
+            SkillPromptService skillPromptService,
+            ToolCallEventContext toolCallEventContext
     ) {
         this.asyncExecutor = asyncExecutor;
         this.runStore = runStore;
         this.llmService = llmService;
         this.llmProperties = llmProperties;
         this.toolExecutionService = toolExecutionService;
+        this.skillPromptService = skillPromptService;
+        this.toolCallEventContext = toolCallEventContext;
     }
 
     public void stream(SseEmitter emitter, RunRecord run) {
@@ -58,7 +67,7 @@ public class ReasoningEngineService {
                         eventPayload("run.started", run.runId(), run.sessionId(), null, Map.of("status", "RUNNING", "engine", "REACT_V0", "provider", provider))
                 );
 
-                ToolIntent toolIntent = parseToolIntent(run.prompt());
+                ToolIntent toolIntent = parseExplicitToolIntent(run.prompt());
                 if (toolIntent != null) {
                     runToolLoop(emitter, run, startedAt, toolIntent);
                     return;
@@ -111,7 +120,11 @@ public class ReasoningEngineService {
                 )
         );
 
-        LlmReply reply = llmService.generate(run.prompt());
+        String promptWithSkill = skillPromptService.buildGeneralPrompt(run.prompt());
+        LlmReply reply = toolCallEventContext.withObserver(
+                buildSseToolObserver(emitter, run),
+                () -> llmService.generate(promptWithSkill)
+        );
         String preview = abbreviate(reply.content(), 160);
         send(
                 emitter,
@@ -166,7 +179,7 @@ public class ReasoningEngineService {
                         run.runId(),
                         run.sessionId(),
                         "step-1",
-                        Map.of("phase", "THINK", "summary", "识别到工具调用意图，准备执行工具")
+                        Map.of("phase", "THINK", "summary", "识别到显式工具调用意图，准备执行工具")
                 )
         );
 
@@ -205,12 +218,11 @@ public class ReasoningEngineService {
             return;
         }
 
-        String synthesisPrompt = """
-                你是一个严谨的软件开发助手。
-                用户请求：%s
-                工具调用结果（%s）：%s
-                请基于工具结果给出最终回答。
-                """.formatted(run.prompt(), toolResult.toolName(), toolResult.output());
+        String synthesisPrompt = skillPromptService.buildToolSynthesisPrompt(
+                run.prompt(),
+                toolResult.toolName(),
+                toolResult.output()
+        );
         LlmReply reply = llmService.generate(synthesisPrompt);
 
         send(
@@ -362,11 +374,68 @@ public class ReasoningEngineService {
         return text.substring(0, maxLen) + "...";
     }
 
+    private ToolCallObserver buildSseToolObserver(SseEmitter emitter, RunRecord run) {
+        AtomicInteger callSeq = new AtomicInteger(0);
+        return new ToolCallObserver() {
+            @Override
+            public String onToolInvoked(String toolName, String argumentsJson) {
+                String callId = "fc-" + callSeq.incrementAndGet();
+                Map<String, Object> detail = new LinkedHashMap<>();
+                detail.put("toolCallId", callId);
+                detail.put("toolName", toolName);
+                detail.put("argumentsJson", argumentsJson);
+                detail.put("route", "MODEL_FUNCTION_CALL");
+                try {
+                    send(
+                            emitter,
+                            "tool.invoked",
+                            eventPayload(
+                                    "tool.invoked",
+                                    run.runId(),
+                                    run.sessionId(),
+                                    "fc-step-" + callSeq.get(),
+                                    detail
+                            )
+                    );
+                } catch (IOException e) {
+                    throw new RuntimeException("发送 tool.invoked 事件失败: " + e.getMessage(), e);
+                }
+                return callId;
+            }
+
+            @Override
+            public void onToolResult(String toolCallId, String toolName, boolean success, String output, String error) {
+                Map<String, Object> detail = new LinkedHashMap<>();
+                detail.put("toolCallId", toolCallId);
+                detail.put("toolName", toolName);
+                detail.put("success", success);
+                detail.put("output", output);
+                detail.put("error", error);
+                detail.put("route", "MODEL_FUNCTION_CALL");
+                try {
+                    send(
+                            emitter,
+                            "tool.result",
+                            eventPayload(
+                                    "tool.result",
+                                    run.runId(),
+                                    run.sessionId(),
+                                    "fc-step-" + callSeq.get(),
+                                    detail
+                            )
+                    );
+                } catch (IOException e) {
+                    throw new RuntimeException("发送 tool.result 事件失败: " + e.getMessage(), e);
+                }
+            }
+        };
+    }
+
     /**
      * 约定格式：tool://<toolName> <json>
      * 示例：tool://echo {"text":"你好"}
      */
-    private static ToolIntent parseToolIntent(String prompt) {
+    private static ToolIntent parseExplicitToolIntent(String prompt) {
         if (prompt == null) {
             return null;
         }

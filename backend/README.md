@@ -57,10 +57,16 @@ mvn -pl backend spring-boot:run
 - 工具系统（M5）：
   - `GET /api/v1/tools`：查看工具清单
   - `POST /api/v1/tools/{toolName}/invoke`：调试调用工具
+  - 工具清单包含 `riskLevel`（`LOW`/`MEDIUM`/`HIGH`）
   - 在 `prompt` 中可使用 `tool://<toolName> <json>` 触发工具（示例：`tool://echo {"text":"你好"}`）
 - 扩展基石（M5+ 第 1 步）：
   - 已引入统一 `ToolProvider` 路由层，当前默认 provider 为 `local`
   - 预留 `agent.mcp.enabled` 开关（默认 `false`），用于后续接入 MCP 工具提供方
+  - Skill 提示词注入开关与模板（`agent.skill.*`）已接入推理主链路
+  - DeepSeek 路径默认开启 LangChain4j function calling（`agent.llm.function-calling-enabled=true`），由模型自主决定何时调用工具
+  - 模型触发工具调用时，会在 SSE 中透传 `tool.invoked` / `tool.result` 事件（`route=MODEL_FUNCTION_CALL`）
+  - `tool://<toolName> <json>` 保留为显式调试入口，不影响模型自主调用路径
+  - 风险判定最小实现：当 `agent.tool-risk.enabled=true` 且工具风险达到 `agent.tool-risk.block-level`（默认 `HIGH`）时，执行被拦截并返回 `TOOL_APPROVAL_REQUIRED`
 
 ## 测试
 
@@ -87,6 +93,7 @@ mvn spring-boot:run "-Dspring-boot.run.profiles=local"
 ```
 
 实现说明：当前 DeepSeek 通过 `LangChain4j OpenAiChatModel` 接入，使用 OpenAI 兼容接口（`base-url` 一般为 `https://api.deepseek.com/v1`）。
+当 `agent.llm.function-calling-enabled=true` 时，会通过 LangChain4j 的 tool calling 能力调用本地工具桥接层。
 
 ## 说明
 

@@ -1,5 +1,12 @@
 # API 变更记录
 
+## 0.6.0（M6）
+
+- `GET /api/v1/tools` 返回结构新增 `riskLevel` 字段（LOW/MEDIUM/HIGH）。
+- 高风险工具（`riskLevel >= agent.tool-risk.block-level`）执行时将被拦截并返回 `TOOL_APPROVAL_REQUIRED`。
+- 新增配置：`agent.tool-risk.enabled`、`agent.tool-risk.block-level`。
+- 破坏性变更：`ToolInfoResponse` 新增必填字段 `riskLevel`（客户端若做严格 schema 校验需同步更新）。
+
 ## 0.5.0（M5）
 
 - 新增工具系统接口：

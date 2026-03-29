@@ -36,9 +36,44 @@
       "description": "是否启用流式输出。"
     },
     {
+      "name": "agent.llm.function-calling-enabled",
+      "type": "java.lang.Boolean",
+      "description": "是否启用基于 LangChain4j 的 function calling。"
+    },
+    {
       "name": "agent.mcp.enabled",
       "type": "java.lang.Boolean",
       "description": "是否启用 MCP 工具提供方（当前为预留占位）。"
+    },
+    {
+      "name": "agent.skill.enabled",
+      "type": "java.lang.Boolean",
+      "description": "是否启用 Skill 提示词注入。"
+    },
+    {
+      "name": "agent.skill.general-system-prompt",
+      "type": "java.lang.String",
+      "description": "通用场景的系统提示词模板。"
+    },
+    {
+      "name": "agent.skill.tool-synthesis-prompt",
+      "type": "java.lang.String",
+      "description": "工具结果融合场景的系统提示词模板。"
+    },
+    {
+      "name": "agent.skill.tool-fallback-prompt",
+      "type": "java.lang.String",
+      "description": "工具失败回退场景的系统提示词模板。"
+    },
+    {
+      "name": "agent.tool-risk.enabled",
+      "type": "java.lang.Boolean",
+      "description": "是否启用工具风险拦截。"
+    },
+    {
+      "name": "agent.tool-risk.block-level",
+      "type": "java.lang.String",
+      "description": "达到该风险等级及以上时阻断工具执行（LOW/MEDIUM/HIGH）。"
     }
   ]
 }

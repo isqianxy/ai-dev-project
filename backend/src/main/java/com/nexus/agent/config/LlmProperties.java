@@ -18,6 +18,7 @@ public class LlmProperties {
     private int timeoutMs = 30000;
     private int maxRetries = 2;
     private boolean stream = true;
+    private boolean functionCallingEnabled = true;
 
     public String getProvider() {
         return provider;
@@ -73,5 +74,13 @@ public class LlmProperties {
 
     public void setStream(boolean stream) {
         this.stream = stream;
+    }
+
+    public boolean isFunctionCallingEnabled() {
+        return functionCallingEnabled;
+    }
+
+    public void setFunctionCallingEnabled(boolean functionCallingEnabled) {
+        this.functionCallingEnabled = functionCallingEnabled;
     }
 }

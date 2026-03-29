@@ -1,8 +1,10 @@
 package com.nexus.agent.service.llm;
 
 import com.nexus.agent.config.LlmProperties;
+import com.nexus.agent.service.tool.LangChainToolBridge;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.service.AiServices;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -12,10 +14,13 @@ import java.util.Locale;
 public class DeepSeekLlmClient implements LlmClient {
 
     private final LlmProperties properties;
+    private final LangChainToolBridge toolBridge;
     private ChatModel chatModel;
+    private Assistant assistant;
 
-    public DeepSeekLlmClient(LlmProperties properties) {
+    public DeepSeekLlmClient(LlmProperties properties, LangChainToolBridge toolBridge) {
         this.properties = properties;
+        this.toolBridge = toolBridge;
     }
 
     @Override
@@ -33,7 +38,9 @@ public class DeepSeekLlmClient implements LlmClient {
 
         for (int i = 1; i <= attempts; i++) {
             try {
-                String answer = model().chat(userPrompt);
+                String answer = properties.isFunctionCallingEnabled()
+                        ? assistant().chat(userPrompt)
+                        : model().chat(userPrompt);
                 if (answer == null || answer.isBlank()) {
                     throw new IllegalStateException("DeepSeek 响应为空");
                 }
@@ -47,6 +54,16 @@ public class DeepSeekLlmClient implements LlmClient {
         }
 
         throw lastException == null ? new RuntimeException("调用 DeepSeek 失败") : lastException;
+    }
+
+    private Assistant assistant() {
+        if (assistant == null) {
+            assistant = AiServices.builder(Assistant.class)
+                    .chatModel(model())
+                    .tools(toolBridge)
+                    .build();
+        }
+        return assistant;
     }
 
     private ChatModel model() {
@@ -90,5 +107,9 @@ public class DeepSeekLlmClient implements LlmClient {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    interface Assistant {
+        String chat(String userMessage);
     }
 }

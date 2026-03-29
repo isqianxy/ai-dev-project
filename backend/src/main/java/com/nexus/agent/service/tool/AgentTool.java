@@ -12,4 +12,6 @@ public @interface AgentTool {
     String name();
 
     String description();
+
+    ToolRiskLevel riskLevel() default ToolRiskLevel.LOW;
 }

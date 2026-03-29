@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class TextTools {
 
-    @AgentTool(name = "echo", description = "返回输入文本")
+    @AgentTool(name = "echo", description = "返回输入文本", riskLevel = ToolRiskLevel.LOW)
     public String echo(EchoToolInput input) {
         if (input == null || input.text() == null) {
             return "";

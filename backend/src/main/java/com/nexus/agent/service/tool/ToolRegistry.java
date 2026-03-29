@@ -36,7 +36,7 @@ public class ToolRegistry {
                 Class<?> parameterType = method.getParameterCount() == 0 ? null : method.getParameterTypes()[0];
                 tools.put(
                         ann.name(),
-                        new ToolDefinition(ann.name(), ann.description(), bean, method, parameterType)
+                        new ToolDefinition(ann.name(), ann.description(), ann.riskLevel(), bean, method, parameterType)
                 );
             }
         }

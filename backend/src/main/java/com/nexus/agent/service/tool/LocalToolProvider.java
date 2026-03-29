@@ -1,6 +1,7 @@
 package com.nexus.agent.service.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nexus.agent.config.ToolRiskProperties;
 import com.nexus.agent.exception.BadRequestException;
 import org.springframework.stereotype.Component;
 
@@ -11,10 +12,16 @@ public class LocalToolProvider implements ToolProvider {
 
     private final ToolRegistry toolRegistry;
     private final ObjectMapper objectMapper;
+    private final ToolRiskProperties toolRiskProperties;
 
-    public LocalToolProvider(ToolRegistry toolRegistry, ObjectMapper objectMapper) {
+    public LocalToolProvider(
+            ToolRegistry toolRegistry,
+            ObjectMapper objectMapper,
+            ToolRiskProperties toolRiskProperties
+    ) {
         this.toolRegistry = toolRegistry;
         this.objectMapper = objectMapper;
+        this.toolRiskProperties = toolRiskProperties;
     }
 
     @Override
@@ -38,6 +45,7 @@ public class LocalToolProvider implements ToolProvider {
     public ToolExecutionResult execute(String toolName, String argumentsJson) {
         ToolDefinition definition = toolRegistry.find(toolName)
                 .orElseThrow(() -> new BadRequestException("TOOL_NOT_FOUND", "工具不存在: " + toolName));
+        enforceRiskPolicy(definition);
 
         try {
             Object output;
@@ -57,7 +65,7 @@ public class LocalToolProvider implements ToolProvider {
 
     private ToolDescriptor toDescriptor(ToolDefinition definition) {
         String paramType = definition.parameterType() == null ? "none" : definition.parameterType().getSimpleName();
-        return new ToolDescriptor(definition.name(), definition.description(), paramType);
+        return new ToolDescriptor(definition.name(), definition.description(), paramType, definition.riskLevel().name());
     }
 
     private Object parseArguments(String argumentsJson, Class<?> targetType) {
@@ -80,6 +88,20 @@ public class LocalToolProvider implements ToolProvider {
             return objectMapper.writeValueAsString(value);
         } catch (Exception e) {
             return String.valueOf(value);
+        }
+    }
+
+    private void enforceRiskPolicy(ToolDefinition definition) {
+        if (!toolRiskProperties.isEnabled()) {
+            return;
+        }
+        ToolRiskLevel riskLevel = definition.riskLevel();
+        ToolRiskLevel blockLevel = toolRiskProperties.getBlockLevel();
+        if (riskLevel != null && blockLevel != null && riskLevel.atLeast(blockLevel)) {
+            throw new BadRequestException(
+                    "TOOL_APPROVAL_REQUIRED",
+                    "工具风险等级过高，需人工审批后执行: " + definition.name() + " (risk=" + riskLevel + ")"
+            );
         }
     }
 }

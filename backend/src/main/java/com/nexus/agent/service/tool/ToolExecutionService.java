@@ -29,4 +29,8 @@ public class ToolExecutionService {
                 .sorted(Comparator.comparing(ToolDescriptor::name))
                 .toList();
     }
+
+    public boolean supports(String toolName) {
+        return providers.stream().anyMatch(p -> p.supports(toolName));
+    }
 }
