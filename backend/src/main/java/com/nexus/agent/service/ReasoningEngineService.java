@@ -1,13 +1,16 @@
 package com.nexus.agent.service;
 
 import com.nexus.agent.config.LlmProperties;
+import com.nexus.agent.domain.ApprovalRecord;
 import com.nexus.agent.domain.RunRecord;
+import com.nexus.agent.exception.BadRequestException;
 import com.nexus.agent.service.llm.LlmReply;
 import com.nexus.agent.service.llm.LlmService;
 import com.nexus.agent.service.tool.ToolCallEventContext;
 import com.nexus.agent.service.tool.ToolCallObserver;
 import com.nexus.agent.service.tool.ToolExecutionResult;
 import com.nexus.agent.service.tool.ToolExecutionService;
+import com.nexus.agent.store.InMemoryApprovalStore;
 import com.nexus.agent.store.InMemoryRunStore;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -35,7 +38,9 @@ public class ReasoningEngineService {
     private final LlmProperties llmProperties;
     private final ToolExecutionService toolExecutionService;
     private final SkillPromptService skillPromptService;
+    private final SessionMemoryService sessionMemoryService;
     private final ToolCallEventContext toolCallEventContext;
+    private final InMemoryApprovalStore approvalStore;
 
     public ReasoningEngineService(
             Executor asyncExecutor,
@@ -44,7 +49,9 @@ public class ReasoningEngineService {
             LlmProperties llmProperties,
             ToolExecutionService toolExecutionService,
             SkillPromptService skillPromptService,
-            ToolCallEventContext toolCallEventContext
+            SessionMemoryService sessionMemoryService,
+            ToolCallEventContext toolCallEventContext,
+            InMemoryApprovalStore approvalStore
     ) {
         this.asyncExecutor = asyncExecutor;
         this.runStore = runStore;
@@ -52,7 +59,9 @@ public class ReasoningEngineService {
         this.llmProperties = llmProperties;
         this.toolExecutionService = toolExecutionService;
         this.skillPromptService = skillPromptService;
+        this.sessionMemoryService = sessionMemoryService;
         this.toolCallEventContext = toolCallEventContext;
+        this.approvalStore = approvalStore;
     }
 
     public void stream(SseEmitter emitter, RunRecord run) {
@@ -66,10 +75,13 @@ public class ReasoningEngineService {
                         "run.started",
                         eventPayload("run.started", run.runId(), run.sessionId(), null, Map.of("status", "RUNNING", "engine", "REACT_V0", "provider", provider))
                 );
+                String historyContext = sessionMemoryService.buildRecentContext(run.sessionId());
+                sessionMemoryService.appendUserMessage(run.sessionId(), run.prompt());
 
                 ToolIntent toolIntent = parseExplicitToolIntent(run.prompt());
                 if (toolIntent != null) {
-                    runToolLoop(emitter, run, startedAt, toolIntent);
+                    boolean approvedBypass = approvalStore.consumeApprovedTool(run.runId(), toolIntent.toolName());
+                    runToolLoop(emitter, run, startedAt, toolIntent, historyContext, approvedBypass);
                     return;
                 }
 
@@ -78,7 +90,29 @@ public class ReasoningEngineService {
                     return;
                 }
 
-                runDeepSeekLoop(emitter, run, startedAt);
+                runDeepSeekLoop(emitter, run, startedAt, historyContext);
+            } catch (BadRequestException e) {
+                try {
+                    if ("TOOL_APPROVAL_REQUIRED".equals(e.getCode())) {
+                        handleApprovalRequired(emitter, run, e.getMessage());
+                        return;
+                    }
+                    runStore.markFailed(run.runId());
+                    send(
+                            emitter,
+                            "run.failed",
+                            eventPayload(
+                                    "run.failed",
+                                    run.runId(),
+                                    run.sessionId(),
+                                    null,
+                                    Map.of("status", "FAILED", "reason", e.getCode(), "message", e.getMessage())
+                            )
+                    );
+                    emitter.complete();
+                } catch (Exception ignored) {
+                    // emitter 可能已关闭
+                }
             } catch (Exception e) {
                 runStore.markFailed(run.runId());
                 String msg = e.getMessage() == null ? "模型调用异常" : e.getMessage();
@@ -102,7 +136,7 @@ public class ReasoningEngineService {
         });
     }
 
-    private void runDeepSeekLoop(SseEmitter emitter, RunRecord run, Instant startedAt) throws IOException {
+    private void runDeepSeekLoop(SseEmitter emitter, RunRecord run, Instant startedAt, String historyContext) throws IOException {
         if (elapsedMs(startedAt) > llmProperties.getTimeoutMs()) {
             fail(emitter, run, "TIMEOUT", "达到最大执行时长，终止运行");
             return;
@@ -120,7 +154,7 @@ public class ReasoningEngineService {
                 )
         );
 
-        String promptWithSkill = skillPromptService.buildGeneralPrompt(run.prompt());
+        String promptWithSkill = skillPromptService.buildGeneralPrompt(run.prompt(), historyContext);
         LlmReply reply = toolCallEventContext.withObserver(
                 buildSseToolObserver(emitter, run),
                 () -> llmService.generate(promptWithSkill)
@@ -162,10 +196,18 @@ public class ReasoningEngineService {
                         Map.of("status", "SUCCEEDED", "answer", reply.content(), "provider", reply.provider(), "model", reply.model())
                 )
         );
+        sessionMemoryService.appendAssistantMessage(run.sessionId(), reply.content());
         emitter.complete();
     }
 
-    private void runToolLoop(SseEmitter emitter, RunRecord run, Instant startedAt, ToolIntent toolIntent) throws IOException {
+    private void runToolLoop(
+            SseEmitter emitter,
+            RunRecord run,
+            Instant startedAt,
+            ToolIntent toolIntent,
+            String historyContext,
+            boolean approvedBypass
+    ) throws IOException {
         if (elapsedMs(startedAt) > llmProperties.getTimeoutMs()) {
             fail(emitter, run, "TIMEOUT", "达到最大执行时长，终止运行");
             return;
@@ -195,7 +237,9 @@ public class ReasoningEngineService {
                 )
         );
 
-        ToolExecutionResult toolResult = toolExecutionService.execute(toolIntent.toolName(), toolIntent.argumentsJson());
+        ToolExecutionResult toolResult = approvedBypass
+                ? toolExecutionService.executeWithApprovedTools(toolIntent.toolName(), toolIntent.argumentsJson(), java.util.Set.of(toolIntent.toolName()))
+                : toolExecutionService.execute(toolIntent.toolName(), toolIntent.argumentsJson());
         Map<String, Object> toolDetail = new LinkedHashMap<>();
         toolDetail.put("toolName", toolResult.toolName());
         toolDetail.put("success", toolResult.success());
@@ -221,7 +265,8 @@ public class ReasoningEngineService {
         String synthesisPrompt = skillPromptService.buildToolSynthesisPrompt(
                 run.prompt(),
                 toolResult.toolName(),
-                toolResult.output()
+                toolResult.output(),
+                historyContext
         );
         LlmReply reply = llmService.generate(synthesisPrompt);
 
@@ -253,6 +298,7 @@ public class ReasoningEngineService {
                         )
                 )
         );
+        sessionMemoryService.appendAssistantMessage(run.sessionId(), reply.content());
         emitter.complete();
     }
 
@@ -455,6 +501,64 @@ public class ReasoningEngineService {
         String toolName = rest.substring(0, blank).trim();
         String args = rest.substring(blank + 1).trim();
         return new ToolIntent(toolName, args.isBlank() ? "{}" : args);
+    }
+
+    private void handleApprovalRequired(SseEmitter emitter, RunRecord run, String message) throws IOException {
+        String toolName = extractToolName(message);
+        String action = "TOOL_EXECUTE:" + toolName;
+        ApprovalRecord approval = approvalStore.create(run.runId(), run.sessionId(), action);
+
+        send(
+                emitter,
+                "approval.requested",
+                eventPayload(
+                        "approval.requested",
+                        run.runId(),
+                        run.sessionId(),
+                        null,
+                        Map.of(
+                                "approvalId", approval.approvalId(),
+                                "action", approval.action(),
+                                "status", approval.status(),
+                                "toolName", toolName
+                        )
+                )
+        );
+
+        runStore.markFailed(run.runId());
+        send(
+                emitter,
+                "run.failed",
+                eventPayload(
+                        "run.failed",
+                        run.runId(),
+                        run.sessionId(),
+                        null,
+                        Map.of(
+                                "status", "FAILED",
+                                "reason", "APPROVAL_REQUIRED",
+                                "message", message,
+                                "approvalId", approval.approvalId()
+                        )
+                )
+        );
+        emitter.complete();
+    }
+
+    private static String extractToolName(String message) {
+        if (message == null || message.isBlank()) {
+            return "unknown_tool";
+        }
+        int colon = message.indexOf(':');
+        if (colon < 0 || colon + 1 >= message.length()) {
+            return "unknown_tool";
+        }
+        String right = message.substring(colon + 1).trim();
+        int blank = right.indexOf(' ');
+        if (blank < 0) {
+            return right;
+        }
+        return right.substring(0, blank).trim();
     }
 
     private record ToolIntent(String toolName, String argumentsJson) {}

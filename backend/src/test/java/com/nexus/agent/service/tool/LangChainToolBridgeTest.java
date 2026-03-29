@@ -12,7 +12,7 @@ class LangChainToolBridgeTest {
     @Test
     void executeTool_shouldNotifyObserver() {
         ToolProvider provider = new FakeToolProvider("echo", new ToolExecutionResult(true, "echo", "hi", null));
-        ToolExecutionService toolExecutionService = new ToolExecutionService(List.of(provider));
+        ToolExecutionService toolExecutionService = new ToolExecutionService(List.of(provider), new ToolExecutionContext());
 
         ToolCallEventContext context = new ToolCallEventContext();
         LangChainToolBridge bridge = new LangChainToolBridge(toolExecutionService, context);
@@ -31,7 +31,7 @@ class LangChainToolBridgeTest {
     @Test
     void executeTool_whenFailure_shouldNotifyObserverAndThrow() {
         ToolProvider provider = new FakeToolProvider("echo", new ToolExecutionResult(false, "echo", null, "bad"));
-        ToolExecutionService toolExecutionService = new ToolExecutionService(List.of(provider));
+        ToolExecutionService toolExecutionService = new ToolExecutionService(List.of(provider), new ToolExecutionContext());
 
         ToolCallEventContext context = new ToolCallEventContext();
         LangChainToolBridge bridge = new LangChainToolBridge(toolExecutionService, context);

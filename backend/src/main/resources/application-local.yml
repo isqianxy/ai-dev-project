@@ -2,6 +2,12 @@ spring:
   config:
     activate:
       on-profile: local
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 1
+      timeout: 3s
 
 # M4 本地模型配置（DeepSeek）
 # 注意：请填入你自己的密钥，不要提交真实密钥到仓库。
@@ -14,3 +20,8 @@ agent:
     timeout-ms: 30000
     max-retries: 2
     stream: true
+  memory:
+    provider: redis
+    window-size: 6
+    key-prefix: "agent:memory:"
+    ttl-seconds: 86400

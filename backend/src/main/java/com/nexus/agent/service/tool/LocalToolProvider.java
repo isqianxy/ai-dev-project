@@ -13,15 +13,18 @@ public class LocalToolProvider implements ToolProvider {
     private final ToolRegistry toolRegistry;
     private final ObjectMapper objectMapper;
     private final ToolRiskProperties toolRiskProperties;
+    private final ToolExecutionContext executionContext;
 
     public LocalToolProvider(
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper,
-            ToolRiskProperties toolRiskProperties
+            ToolRiskProperties toolRiskProperties,
+            ToolExecutionContext executionContext
     ) {
         this.toolRegistry = toolRegistry;
         this.objectMapper = objectMapper;
         this.toolRiskProperties = toolRiskProperties;
+        this.executionContext = executionContext;
     }
 
     @Override
@@ -93,6 +96,9 @@ public class LocalToolProvider implements ToolProvider {
 
     private void enforceRiskPolicy(ToolDefinition definition) {
         if (!toolRiskProperties.isEnabled()) {
+            return;
+        }
+        if (executionContext.isToolApproved(definition.name())) {
             return;
         }
         ToolRiskLevel riskLevel = definition.riskLevel();

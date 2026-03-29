@@ -13,6 +13,10 @@ public class SkillPromptService {
     }
 
     public String buildGeneralPrompt(String userPrompt) {
+        return buildGeneralPrompt(userPrompt, "");
+    }
+
+    public String buildGeneralPrompt(String userPrompt, String historyContext) {
         if (!properties.isEnabled()) {
             return userPrompt == null ? "" : userPrompt;
         }
@@ -20,12 +24,23 @@ public class SkillPromptService {
                 [SYSTEM]
                 %s
 
+                [HISTORY]
+                %s
+
                 [USER]
                 %s
-                """.formatted(normalize(properties.getGeneralSystemPrompt()), normalize(userPrompt));
+                """.formatted(
+                normalize(properties.getGeneralSystemPrompt()),
+                normalize(historyContext),
+                normalize(userPrompt)
+        );
     }
 
     public String buildToolSynthesisPrompt(String userPrompt, String toolName, String toolOutput) {
+        return buildToolSynthesisPrompt(userPrompt, toolName, toolOutput, "");
+    }
+
+    public String buildToolSynthesisPrompt(String userPrompt, String toolName, String toolOutput, String historyContext) {
         if (!properties.isEnabled()) {
             return """
                     用户请求：%s
@@ -38,6 +53,7 @@ public class SkillPromptService {
                 %s
 
                 [CONTEXT]
+                历史上下文：%s
                 用户请求：%s
                 工具调用结果（%s）：%s
 
@@ -45,6 +61,7 @@ public class SkillPromptService {
                 请基于工具结果给出最终回答。
                 """.formatted(
                 normalize(properties.getToolSynthesisPrompt()),
+                normalize(historyContext),
                 normalize(userPrompt),
                 normalize(toolName),
                 normalize(toolOutput)

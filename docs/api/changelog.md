@@ -4,6 +4,8 @@
 
 - `GET /api/v1/tools` 返回结构新增 `riskLevel` 字段（LOW/MEDIUM/HIGH）。
 - 高风险工具（`riskLevel >= agent.tool-risk.block-level`）执行时将被拦截并返回 `TOOL_APPROVAL_REQUIRED`。
+- 当运行中触发高风险工具拦截时，SSE 新增事件 `approval.requested`，并自动创建审批记录（含 `approvalId`）。
+- 审批通过后可重试同一 run；若命中 `TOOL_EXECUTE:<toolName>` 的批准记录，该高风险工具允许一次执行（单次放行后失效）。
 - 新增配置：`agent.tool-risk.enabled`、`agent.tool-risk.block-level`。
 - 破坏性变更：`ToolInfoResponse` 新增必填字段 `riskLevel`（客户端若做严格 schema 校验需同步更新）。
 

@@ -146,6 +146,63 @@ class ApiSmokeTest {
     }
 
     @Test
+    void runEvents_highRiskTool_shouldRequestApproval() {
+        ResponseEntity<JsonNode> sessionRes = restTemplate.postForEntity("/api/v1/sessions", null, JsonNode.class);
+        String sessionId = sessionRes.getBody().get("sessionId").asText();
+
+        ResponseEntity<JsonNode> runRes = restTemplate.postForEntity(
+                "/api/v1/sessions/" + sessionId + "/runs",
+                java.util.Map.of("prompt", "tool://dangerous_test_tool"),
+                JsonNode.class
+        );
+        String runId = runRes.getBody().get("runId").asText();
+
+        ResponseEntity<String> sseRes = restTemplate.getForEntity("/api/v1/runs/" + runId + "/events", String.class);
+        assertThat(sseRes.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(sseRes.getBody()).contains("event:approval.requested");
+        assertThat(sseRes.getBody()).contains("\"action\":\"TOOL_EXECUTE:dangerous_test_tool\"");
+        assertThat(sseRes.getBody()).contains("event:run.failed");
+        assertThat(sseRes.getBody()).contains("\"reason\":\"APPROVAL_REQUIRED\"");
+    }
+
+    @Test
+    void runEvents_highRiskTool_afterApproval_shouldComplete() {
+        ResponseEntity<JsonNode> sessionRes = restTemplate.postForEntity("/api/v1/sessions", null, JsonNode.class);
+        String sessionId = sessionRes.getBody().get("sessionId").asText();
+
+        ResponseEntity<JsonNode> runRes = restTemplate.postForEntity(
+                "/api/v1/sessions/" + sessionId + "/runs",
+                java.util.Map.of("prompt", "tool://dangerous_test_tool"),
+                JsonNode.class
+        );
+        String runId = runRes.getBody().get("runId").asText();
+
+        ResponseEntity<String> firstSseRes = restTemplate.getForEntity("/api/v1/runs/" + runId + "/events", String.class);
+        assertThat(firstSseRes.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(firstSseRes.getBody()).contains("event:approval.requested");
+
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("\"approvalId\":\"([^\"]+)\"")
+                .matcher(firstSseRes.getBody());
+        assertThat(matcher.find()).isTrue();
+        String approvalId = matcher.group(1);
+
+        ResponseEntity<JsonNode> resolveRes = restTemplate.postForEntity(
+                "/api/v1/approvals/" + approvalId + "/resolve",
+                java.util.Map.of("decision", "APPROVED", "resolvedBy", "tester"),
+                JsonNode.class
+        );
+        assertThat(resolveRes.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resolveRes.getBody().get("status").asText()).isEqualTo("APPROVED");
+
+        ResponseEntity<String> secondSseRes = restTemplate.getForEntity("/api/v1/runs/" + runId + "/events", String.class);
+        assertThat(secondSseRes.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(secondSseRes.getBody()).contains("event:tool.invoked");
+        assertThat(secondSseRes.getBody()).contains("dangerous_test_tool");
+        assertThat(secondSseRes.getBody()).contains("event:run.completed");
+    }
+
+    @Test
     void runEvents_timeQuestion_inMockProvider_shouldCompleteNormally() {
         ResponseEntity<JsonNode> sessionRes = restTemplate.postForEntity("/api/v1/sessions", null, JsonNode.class);
         String sessionId = sessionRes.getBody().get("sessionId").asText();

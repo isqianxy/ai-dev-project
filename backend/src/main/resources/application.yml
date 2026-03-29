@@ -25,3 +25,9 @@ agent:
   tool-risk:
     enabled: true
     block-level: HIGH
+  memory:
+    enabled: true
+    provider: in_memory
+    window-size: 6
+    key-prefix: "agent:memory:"
+    ttl-seconds: 86400

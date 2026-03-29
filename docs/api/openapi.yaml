@@ -53,7 +53,7 @@ paths:
 
   /api/v1/runs/{runId}/events:
     get:
-      summary: 订阅运行事件（SSE，M5 增加工具事件）
+      summary: 订阅运行事件（SSE，M6 增加审批请求事件）
       operationId: subscribeRunEvents
       parameters:
         - name: runId
@@ -63,7 +63,7 @@ paths:
             type: string
       responses:
         "200":
-          description: SSE 流（可能事件：run.started / reasoning.step / tool.invoked / tool.result / run.completed / run.failed）
+          description: SSE 流（可能事件：run.started / reasoning.step / tool.invoked / tool.result / approval.requested / run.completed / run.failed）
           content:
             text/event-stream:
               schema:

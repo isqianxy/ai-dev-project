@@ -67,6 +67,10 @@ mvn -pl backend spring-boot:run
   - 模型触发工具调用时，会在 SSE 中透传 `tool.invoked` / `tool.result` 事件（`route=MODEL_FUNCTION_CALL`）
   - `tool://<toolName> <json>` 保留为显式调试入口，不影响模型自主调用路径
   - 风险判定最小实现：当 `agent.tool-risk.enabled=true` 且工具风险达到 `agent.tool-risk.block-level`（默认 `HIGH`）时，执行被拦截并返回 `TOOL_APPROVAL_REQUIRED`
+  - 风险拦截联动审批：运行期触发高风险工具时，自动创建审批并发出 `approval.requested` 事件（随后本次 run 以 `APPROVAL_REQUIRED` 结束）
+  - 审批通过后可重试同一 run：对于 `TOOL_EXECUTE:<toolName>` 类型审批，系统对该工具提供一次性放行（执行后失效）
+  - 短期记忆（M7）：按会话维护最近滑窗上下文（`agent.memory.window-size`），在模型调用时注入 `HISTORY`
+  - 记忆存储可切换：`agent.memory.provider=in_memory|redis`（默认 `in_memory`，切换 `redis` 后支持跨重启保留）
 
 ## 测试
 

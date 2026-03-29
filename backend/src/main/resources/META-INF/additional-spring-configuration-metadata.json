@@ -74,6 +74,31 @@
       "name": "agent.tool-risk.block-level",
       "type": "java.lang.String",
       "description": "达到该风险等级及以上时阻断工具执行（LOW/MEDIUM/HIGH）。"
+    },
+    {
+      "name": "agent.memory.enabled",
+      "type": "java.lang.Boolean",
+      "description": "是否启用会话短期记忆。"
+    },
+    {
+      "name": "agent.memory.window-size",
+      "type": "java.lang.Integer",
+      "description": "短期记忆滑窗大小（按消息条目计数）。"
+    },
+    {
+      "name": "agent.memory.provider",
+      "type": "java.lang.String",
+      "description": "短期记忆存储提供方（in_memory/redis）。"
+    },
+    {
+      "name": "agent.memory.key-prefix",
+      "type": "java.lang.String",
+      "description": "Redis 记忆键前缀。"
+    },
+    {
+      "name": "agent.memory.ttl-seconds",
+      "type": "java.lang.Long",
+      "description": "Redis 记忆过期时间（秒）。"
     }
   ]
 }
