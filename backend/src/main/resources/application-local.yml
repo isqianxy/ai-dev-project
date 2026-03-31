@@ -15,7 +15,7 @@ agent:
   llm:
     provider: deepseek
     base-url: https://api.deepseek.com/v1
-    api-key: "sk-22712df616dd42cf90679f62388d299d"
+    api-key: ""
     model: deepseek-chat
     timeout-ms: 30000
     max-retries: 2
