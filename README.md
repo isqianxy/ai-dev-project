@@ -29,6 +29,20 @@
 
 **细节与配置**（模型 Key、MCP、Redis、ES、基础设施模板等）：见 `backend/README.md` 与 `backend/src/main/resources/application-local-infra.template.yml`。
 
+## 运行效果展示
+
+### 启动页面
+
+![启动页面](docs/images/runtime-startup.png)
+
+### 工作页面
+
+![工作页面](docs/images/runtime-working.png)
+
+### Redis 记忆存储
+
+![Redis 记忆存储](docs/images/runtime-redis-memory.png)
+
 ## 文档
 
 - 产品：`docs/prd/prd.md`
