@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Nexus Agent API
-  version: 0.6.0
-  description: M6 迭代契约（Session / Run / Event / Approval + 模型适配 + 工具系统 + 工具风险元数据）。
+  version: 0.9.0
+  description: M7/M8/M9/M10 迭代契约（Session / Run / Event / Approval + 模型适配 + 工具系统 + 记忆 + trace 链路字段 + 稳定性熔断 + RAG 检索事件）。
 
 servers:
   - url: http://localhost:8080
@@ -63,7 +63,7 @@ paths:
             type: string
       responses:
         "200":
-          description: SSE 流（可能事件：run.started / reasoning.step / tool.invoked / tool.result / approval.requested / run.completed / run.failed）
+          description: SSE 流（可能事件：run.started / rag.retrieved / reasoning.step / tool.invoked / tool.result / approval.requested / run.completed / run.failed；所有事件顶层包含 traceId）
           content:
             text/event-stream:
               schema:

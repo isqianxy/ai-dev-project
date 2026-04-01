@@ -43,7 +43,42 @@
     {
       "name": "agent.mcp.enabled",
       "type": "java.lang.Boolean",
-      "description": "是否启用 MCP 工具提供方（当前为预留占位）。"
+      "description": "是否启用 MCP 工具提供方。"
+    },
+    {
+      "name": "agent.mcp.tool-prefix",
+      "type": "java.lang.String",
+      "description": "对 MCP 服务器工具名添加逻辑前缀，避免命名冲突。"
+    },
+    {
+      "name": "agent.mcp.stdio.enabled",
+      "type": "java.lang.Boolean",
+      "description": "是否启用 stdio 方式的 MCP 客户端连接。"
+    },
+    {
+      "name": "agent.mcp.stdio.command",
+      "type": "java.lang.String",
+      "description": "stdio MCP server 启动命令。"
+    },
+    {
+      "name": "agent.mcp.stdio.args",
+      "type": "java.util.List<java.lang.String>",
+      "description": "stdio MCP server 启动参数列表。"
+    },
+    {
+      "name": "agent.mcp.stdio.env",
+      "type": "java.util.Map<java.lang.String,java.lang.String>",
+      "description": "stdio MCP server 环境变量。"
+    },
+    {
+      "name": "agent.mcp.stdio.request-timeout-ms",
+      "type": "java.lang.Long",
+      "description": "MCP 工具调用超时（毫秒）。"
+    },
+    {
+      "name": "agent.mcp.stdio.init-timeout-ms",
+      "type": "java.lang.Long",
+      "description": "MCP 客户端初始化超时（毫秒）。"
     },
     {
       "name": "agent.skill.enabled",
@@ -99,6 +134,91 @@
       "name": "agent.memory.ttl-seconds",
       "type": "java.lang.Long",
       "description": "Redis 记忆过期时间（秒）。"
+    },
+    {
+      "name": "agent.stability.circuit-breaker-enabled",
+      "type": "java.lang.Boolean",
+      "description": "是否启用模型调用熔断。"
+    },
+    {
+      "name": "agent.stability.circuit-failure-threshold",
+      "type": "java.lang.Integer",
+      "description": "触发熔断前允许的连续失败次数。"
+    },
+    {
+      "name": "agent.stability.circuit-open-ms",
+      "type": "java.lang.Integer",
+      "description": "熔断开启时长（毫秒）。"
+    },
+    {
+      "name": "agent.rag.enabled",
+      "type": "java.lang.Boolean",
+      "description": "是否启用 RAG 检索增强。"
+    },
+    {
+      "name": "agent.rag.provider",
+      "type": "java.lang.String",
+      "description": "RAG 检索提供方（mock/elastic）。"
+    },
+    {
+      "name": "agent.rag.top-k",
+      "type": "java.lang.Integer",
+      "description": "RAG 检索返回的最大片段数。"
+    },
+    {
+      "name": "agent.rag.local-documents",
+      "type": "java.util.List<java.lang.String>",
+      "description": "本地向量检索模式下的测试文本集合。"
+    },
+    {
+      "name": "agent.rag.embedding.base-url",
+      "type": "java.lang.String",
+      "description": "Embedding 模型服务地址（OpenAI 兼容）。"
+    },
+    {
+      "name": "agent.rag.embedding.api-key",
+      "type": "java.lang.String",
+      "description": "Embedding 模型服务 API Key。"
+    },
+    {
+      "name": "agent.rag.embedding.model",
+      "type": "java.lang.String",
+      "description": "Embedding 模型名，默认 text-embedding-3-small。"
+    },
+    {
+      "name": "agent.rag.embedding.timeout-ms",
+      "type": "java.lang.Integer",
+      "description": "Embedding 调用超时（毫秒）。"
+    },
+    {
+      "name": "agent.rag.embedding.max-retries",
+      "type": "java.lang.Integer",
+      "description": "Embedding 调用最大重试次数。"
+    },
+    {
+      "name": "agent.rag.elastic.base-url",
+      "type": "java.lang.String",
+      "description": "Elasticsearch 服务地址。"
+    },
+    {
+      "name": "agent.rag.elastic.index",
+      "type": "java.lang.String",
+      "description": "RAG 检索索引名。"
+    },
+    {
+      "name": "agent.rag.elastic.api-key",
+      "type": "java.lang.String",
+      "description": "Elasticsearch API Key（优先）。"
+    },
+    {
+      "name": "agent.rag.elastic.username",
+      "type": "java.lang.String",
+      "description": "Elasticsearch Basic Auth 用户名。"
+    },
+    {
+      "name": "agent.rag.elastic.password",
+      "type": "java.lang.String",
+      "description": "Elasticsearch Basic Auth 密码。"
     }
   ]
 }

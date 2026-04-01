@@ -22,6 +22,14 @@ agent:
     tool-fallback-prompt: "你是一个严谨的软件开发助手。工具调用失败时，请明确说明不确定性并给出可执行替代建议。"
   mcp:
     enabled: false
+    tool-prefix: "mcp."
+    stdio:
+      enabled: true
+      command: ""
+      args: []
+      env: {}
+      request-timeout-ms: 10000
+      init-timeout-ms: 10000
   tool-risk:
     enabled: true
     block-level: HIGH
@@ -31,3 +39,29 @@ agent:
     window-size: 6
     key-prefix: "agent:memory:"
     ttl-seconds: 86400
+  rag:
+    enabled: true
+    provider: mock
+    top-k: 3
+    local-documents:
+      - "Nexus Agent 支持 Session / Run / SSE 事件流，便于追踪每次执行。"
+      - "工具系统走 LangChain4j function calling，支持风险分级与审批。"
+      - "记忆层支持 in_memory 与 redis 切换，默认窗口大小为 6。"
+      - "RAG 结果会在 THINK 前注入上下文，并通过 rag.retrieved 事件可观测。"
+      - "系统在模型连续失败时启用熔断，快速失败并保护主链路。"
+    embedding:
+      base-url: ""
+      api-key: ""
+      model: text-embedding-3-small
+      timeout-ms: 15000
+      max-retries: 1
+    elastic:
+      base-url: ""
+      index: agent_knowledge_chunks
+      api-key: ""
+      username: ""
+      password: ""
+  stability:
+    circuit-breaker-enabled: true
+    circuit-failure-threshold: 3
+    circuit-open-ms: 30000

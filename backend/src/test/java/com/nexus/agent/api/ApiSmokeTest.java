@@ -140,8 +140,10 @@ class ApiSmokeTest {
 
         ResponseEntity<String> sseRes = restTemplate.getForEntity("/api/v1/runs/" + runId + "/events", String.class);
         assertThat(sseRes.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(sseRes.getBody()).contains("event:rag.retrieved");
         assertThat(sseRes.getBody()).contains("event:tool.invoked");
         assertThat(sseRes.getBody()).contains("event:tool.result");
+        assertThat(sseRes.getBody()).contains("\"traceId\":\"trace-");
         assertThat(sseRes.getBody()).contains("event:run.completed");
     }
 

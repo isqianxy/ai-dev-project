@@ -57,7 +57,7 @@ public class InMemorySessionMemoryRepository implements SessionMemoryRepository 
         queue.addLast(new MemoryItem(role, text.trim()));
         int windowSize = Math.max(0, properties.getWindowSize());
         while (queue.size() > windowSize) {
-            queue.removeFirst();
+            queue.removeFirst(); 
         }
     }
 

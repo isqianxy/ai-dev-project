@@ -8,7 +8,13 @@ Thumbs.db
 
 # 后端构建产物
 backend/target/
+
+# 本地/个人配置（勿提交；若已被 Git 跟踪，需执行 git rm --cached <文件> 后再提交）
 backend/src/main/resources/application-local.yml
+backend/src/main/resources/application-local-infra.yml
+
+# 简历等个人文档（勿提交）
+docs/resume/
 
 # 前端构建产物
 frontend/node_modules/

@@ -1,5 +1,25 @@
 # API 变更记录
 
+## 0.9.0（M10）
+
+- SSE 事件新增 `rag.retrieved`，用于观测 RAG 检索提供方与命中数。
+- 新增配置：`agent.rag.enabled`、`agent.rag.provider`、`agent.rag.top-k`。
+- 支持 RAG 检索上下文注入（当前默认 `mock` provider，`elastic` provider 为占位实现，异常时可降级为空结果）。
+- RAG 检索接口切换为 LangChain4j 抽象（`ContentRetriever`/`Query`/`Content`），便于后续直接接入 EmbeddingStore 与 RetrievalAugmentor。
+- 破坏性变更：无（新增事件，向后兼容）。
+
+## 0.8.0（M9）
+
+- 新增稳定性配置：`agent.stability.circuit-breaker-enabled`、`agent.stability.circuit-failure-threshold`、`agent.stability.circuit-open-ms`。
+- 模型连续失败达到阈值后触发熔断，熔断窗口内快速失败，`run.failed.reason` 可能返回 `CIRCUIT_OPEN`。
+- 破坏性变更：无（行为增强，向后兼容）。
+
+## 0.7.0（M7/M8）
+
+- SSE 事件顶层新增 `traceId` 字段，用于链路追踪（`run.started/reasoning.step/tool.invoked/tool.result/approval.requested/run.completed/run.failed`）。
+- 记忆能力增强：新增可切换记忆存储（`agent.memory.provider=in_memory|redis`），Redis 支持 `key-prefix` 与 `ttl-seconds`。
+- 破坏性变更：无（新增字段，向后兼容）。
+
 ## 0.6.0（M6）
 
 - `GET /api/v1/tools` 返回结构新增 `riskLevel` 字段（LOW/MEDIUM/HIGH）。

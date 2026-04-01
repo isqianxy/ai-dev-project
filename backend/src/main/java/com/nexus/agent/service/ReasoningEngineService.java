@@ -6,6 +6,7 @@ import com.nexus.agent.domain.RunRecord;
 import com.nexus.agent.exception.BadRequestException;
 import com.nexus.agent.service.llm.LlmReply;
 import com.nexus.agent.service.llm.LlmService;
+import com.nexus.agent.service.rag.RagService;
 import com.nexus.agent.service.tool.ToolCallEventContext;
 import com.nexus.agent.service.tool.ToolCallObserver;
 import com.nexus.agent.service.tool.ToolExecutionResult;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -31,6 +33,7 @@ public class ReasoningEngineService {
     private static final int MAX_STEPS = 6;
     private static final long MAX_DURATION_MS = 4_000L;
     private static final String[] PHASES = {"THINK", "ACT", "OBSERVE"};
+    private static final ThreadLocal<String> TRACE_ID_HOLDER = new ThreadLocal<>();
 
     private final Executor asyncExecutor;
     private final InMemoryRunStore runStore;
@@ -39,6 +42,7 @@ public class ReasoningEngineService {
     private final ToolExecutionService toolExecutionService;
     private final SkillPromptService skillPromptService;
     private final SessionMemoryService sessionMemoryService;
+    private final RagService ragService;
     private final ToolCallEventContext toolCallEventContext;
     private final InMemoryApprovalStore approvalStore;
 
@@ -50,6 +54,7 @@ public class ReasoningEngineService {
             ToolExecutionService toolExecutionService,
             SkillPromptService skillPromptService,
             SessionMemoryService sessionMemoryService,
+            RagService ragService,
             ToolCallEventContext toolCallEventContext,
             InMemoryApprovalStore approvalStore
     ) {
@@ -60,6 +65,7 @@ public class ReasoningEngineService {
         this.toolExecutionService = toolExecutionService;
         this.skillPromptService = skillPromptService;
         this.sessionMemoryService = sessionMemoryService;
+        this.ragService = ragService;
         this.toolCallEventContext = toolCallEventContext;
         this.approvalStore = approvalStore;
     }
@@ -67,6 +73,7 @@ public class ReasoningEngineService {
     public void stream(SseEmitter emitter, RunRecord run) {
         runStore.markStreaming(run.runId());
         asyncExecutor.execute(() -> {
+            TRACE_ID_HOLDER.set("trace-" + UUID.randomUUID());
             Instant startedAt = Instant.now();
             try {
                 String provider = llmService.currentProvider();
@@ -77,11 +84,14 @@ public class ReasoningEngineService {
                 );
                 String historyContext = sessionMemoryService.buildRecentContext(run.sessionId());
                 sessionMemoryService.appendUserMessage(run.sessionId(), run.prompt());
+                RagService.RagResult ragResult = ragService.retrieve(run.sessionId(), run.prompt());
+                emitRagRetrieved(emitter, run, ragResult);
+                String mergedContext = mergeContext(historyContext, ragResult.context());
 
                 ToolIntent toolIntent = parseExplicitToolIntent(run.prompt());
                 if (toolIntent != null) {
                     boolean approvedBypass = approvalStore.consumeApprovedTool(run.runId(), toolIntent.toolName());
-                    runToolLoop(emitter, run, startedAt, toolIntent, historyContext, approvedBypass);
+                    runToolLoop(emitter, run, startedAt, toolIntent, mergedContext, approvedBypass);
                     return;
                 }
 
@@ -90,7 +100,7 @@ public class ReasoningEngineService {
                     return;
                 }
 
-                runDeepSeekLoop(emitter, run, startedAt, historyContext);
+                runDeepSeekLoop(emitter, run, startedAt, mergedContext);
             } catch (BadRequestException e) {
                 try {
                     if ("TOOL_APPROVAL_REQUIRED".equals(e.getCode())) {
@@ -116,6 +126,7 @@ public class ReasoningEngineService {
             } catch (Exception e) {
                 runStore.markFailed(run.runId());
                 String msg = e.getMessage() == null ? "模型调用异常" : e.getMessage();
+                String reason = msg.startsWith("CIRCUIT_OPEN:") ? "CIRCUIT_OPEN" : "MODEL_ERROR";
                 try {
                     send(
                             emitter,
@@ -125,13 +136,15 @@ public class ReasoningEngineService {
                                     run.runId(),
                                     run.sessionId(),
                                     null,
-                                    Map.of("status", "FAILED", "reason", "MODEL_ERROR", "message", msg)
+                                    Map.of("status", "FAILED", "reason", reason, "message", msg)
                             )
                     );
                     emitter.complete();
                 } catch (Exception ignored) {
                     // emitter 可能已关闭
                 }
+            } finally {
+                TRACE_ID_HOLDER.remove();
             }
         });
     }
@@ -384,6 +397,10 @@ public class ReasoningEngineService {
             Object detail
     ) {
         Map<String, Object> m = new LinkedHashMap<>();
+        String traceId = TRACE_ID_HOLDER.get();
+        if (traceId != null && !traceId.isBlank()) {
+            m.put("traceId", traceId);
+        }
         m.put("type", type);
         m.put("runId", runId);
         m.put("sessionId", sessionId);
@@ -559,6 +576,30 @@ public class ReasoningEngineService {
             return right;
         }
         return right.substring(0, blank).trim();
+    }
+
+    private void emitRagRetrieved(SseEmitter emitter, RunRecord run, RagService.RagResult ragResult) throws IOException {
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("provider", ragResult.provider());
+        detail.put("hitCount", ragResult.hits().size());
+        detail.put("sources", ragResult.hits().stream().map(s -> s.source()).toList());
+        send(
+                emitter,
+                "rag.retrieved",
+                eventPayload("rag.retrieved", run.runId(), run.sessionId(), null, detail)
+        );
+    }
+
+    private static String mergeContext(String historyContext, String ragContext) {
+        String history = historyContext == null ? "" : historyContext.trim();
+        String rag = ragContext == null ? "" : ragContext.trim();
+        if (history.isEmpty()) {
+            return rag;
+        }
+        if (rag.isEmpty()) {
+            return history;
+        }
+        return history + "\n" + rag;
     }
 
     private record ToolIntent(String toolName, String argumentsJson) {}

@@ -12,8 +12,9 @@
 
 ### 当前进度（状态同步）
 
-- **已完成**：M1（骨架）/ M2（契约）/ M3（ReAct v0）/ M4（DeepSeek 模型适配）/ M5（工具系统 v1）/ M5+（ToolProvider + Skill 注入 + 基础路由/回退）/ M6a（工具风险元数据与高风险拦截）/ M6b（高风险拦截联动审批）/ M6c（审批通过后单次放行执行）/ M7（短期记忆滑窗 + Redis 可切换存储）
-- **下一阶段**：M10（RAG）
+- **已完成**：M1（骨架）/ M2（契约）/ M3（ReAct v0）/ M4（DeepSeek 模型适配）/ M5（工具系统 v1）/ M5+（ToolProvider + Skill 注入 + 基础路由/回退）/ M6a（工具风险元数据与高风险拦截）/ M6b（高风险拦截联动审批）/ M6c（审批通过后单次放行执行）/ M7（短期记忆滑窗 + Redis 可切换存储）/ M8a（traceId 事件链路）/ M9a（LLM 熔断最小策略）/ M10a（RAG 检索事件与上下文注入闭环）/ M10b（ES 检索配置化 + 数据库/基础设施配置模板预留）
+- **下一阶段**：M10c（向量检索与强过滤）
+- **框架约束**：Agent 主链路优先复用 LangChain4j 抽象（模型/工具/RAG/记忆），避免重复造轮子。
 
 ### M1：可运行的最小骨架（不含真实 LLM / 不含真实工具）
 
@@ -80,7 +81,7 @@
   - Skill 配置可通过文件切换并影响模型行为
 - **回滚点**：Provider 路由可切回本地工具单一路径
 - **当前进展**
-  - 已完成：引入 `ToolProvider` 接口、`local` provider 适配、`mcp` provider 占位开关（`agent.mcp.enabled`）
+  - 已完成：引入 `ToolProvider` 接口、`local` provider 适配、`mcp` provider 最小可用（基于 LangChain4j MCP 的 stdio 客户端，`listTools/executeTool` 动态转发）
   - 已完成：`Skill` 模板注入（`agent.skill.*`）与 DeepSeek + LangChain4j function calling 主链路（模型主导工具调用）
   - 已完成：模型函数调用链路的工具事件透传（`tool.invoked` / `tool.result`）到 SSE
   - 待完成：更丰富的工具选择策略（多工具评分、风险分级、审批联动）
