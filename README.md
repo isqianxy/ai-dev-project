@@ -34,4 +34,3 @@
 - 产品：`docs/prd/prd.md`
 - 设计：`docs/design/`
 - 计划与里程碑：`docs/plan/work-plan.md`
-- 简历用项目介绍 / 面试问答：`docs/resume/`
