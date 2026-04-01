@@ -15,6 +15,7 @@ backend/src/main/resources/application-local-infra.yml
 
 # 简历等个人文档（勿提交）
 docs/resume/
+docs/design/rag-and-mcp-implementation-flow.md
 
 # 前端构建产物
 frontend/node_modules/

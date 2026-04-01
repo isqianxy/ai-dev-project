@@ -9,6 +9,7 @@
 - `tooling-system.md`：工具系统（注解暴露、参数映射、结果回传）
 - `memory-management.md`：记忆管理（短期会话、持久化、RAG 与 ES）
 - `rag-with-elasticsearch.md`：基于 Elasticsearch 的 RAG 专项方案（索引、检索、混合排序、与 MySQL 协同）
+- `rag-and-mcp-implementation-flow.md`：RAG 与 MCP 在当前代码中的实现链路详解（配置、时序、降级、排障）
 - `api-design.md`：REST/SSE 设计要点与契约落位
 - `data-design.md`：MySQL/Redis/Elasticsearch 使用边界与数据模型草案（RAG）
 - `security-and-permission.md`：权限隔离与 Human-in-the-loop
