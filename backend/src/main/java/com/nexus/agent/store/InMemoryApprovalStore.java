@@ -71,4 +71,15 @@ public class InMemoryApprovalStore {
         }
         return approvedToolByRunId.remove(runId, toolName);
     }
+
+    public Optional<String> consumeApprovedTool(String runId) {
+        if (runId == null || runId.isBlank()) {
+            return Optional.empty();
+        }
+        String approvedTool = approvedToolByRunId.remove(runId);
+        if (approvedTool == null || approvedTool.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(approvedTool);
+    }
 }

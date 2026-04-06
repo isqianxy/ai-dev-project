@@ -9,6 +9,7 @@ import com.nexus.agent.service.llm.LlmService;
 import com.nexus.agent.service.rag.RagService;
 import com.nexus.agent.service.tool.ToolCallEventContext;
 import com.nexus.agent.service.tool.ToolCallObserver;
+import com.nexus.agent.service.tool.ToolExecutionContext;
 import com.nexus.agent.service.tool.ToolExecutionResult;
 import com.nexus.agent.service.tool.ToolExecutionService;
 import com.nexus.agent.store.InMemoryApprovalStore;
@@ -40,6 +41,7 @@ public class ReasoningEngineService {
     private final LlmService llmService;
     private final LlmProperties llmProperties;
     private final ToolExecutionService toolExecutionService;
+    private final ToolExecutionContext toolExecutionContext;
     private final SkillPromptService skillPromptService;
     private final SessionMemoryService sessionMemoryService;
     private final RagService ragService;
@@ -52,6 +54,7 @@ public class ReasoningEngineService {
             LlmService llmService,
             LlmProperties llmProperties,
             ToolExecutionService toolExecutionService,
+            ToolExecutionContext toolExecutionContext,
             SkillPromptService skillPromptService,
             SessionMemoryService sessionMemoryService,
             RagService ragService,
@@ -63,6 +66,7 @@ public class ReasoningEngineService {
         this.llmService = llmService;
         this.llmProperties = llmProperties;
         this.toolExecutionService = toolExecutionService;
+        this.toolExecutionContext = toolExecutionContext;
         this.skillPromptService = skillPromptService;
         this.sessionMemoryService = sessionMemoryService;
         this.ragService = ragService;
@@ -168,9 +172,12 @@ public class ReasoningEngineService {
         );
 
         String promptWithSkill = skillPromptService.buildGeneralPrompt(run.prompt(), historyContext);
+        java.util.Optional<String> approvedTool = approvalStore.consumeApprovedTool(run.runId());
         LlmReply reply = toolCallEventContext.withObserver(
                 buildSseToolObserver(emitter, run),
-                () -> llmService.generate(promptWithSkill)
+                () -> approvedTool
+                        .map(tool -> toolExecutionContext.withApprovedTools(java.util.Set.of(tool), () -> llmService.generate(promptWithSkill)))
+                        .orElseGet(() -> llmService.generate(promptWithSkill))
         );
         String preview = abbreviate(reply.content(), 160);
         send(

@@ -25,6 +25,7 @@ type ToolInfo = {
 };
 
 type LogEntry = { id: string; ts: string; event: string; traceId?: string; summary: string; raw: string };
+type PendingApproval = { approvalId: string; action: string; toolName: string };
 
 function formatTime() {
   return new Date().toLocaleTimeString("zh-CN", { hour12: false });
@@ -78,6 +79,8 @@ export default function App() {
   const [invokeResult, setInvokeResult] = useState<string | null>(null);
   const [eventLog, setEventLog] = useState<LogEntry[]>([]);
   const [logFilter, setLogFilter] = useState("");
+  const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
+  const [approvalBusy, setApprovalBusy] = useState(false);
   const esRef = useRef<EventSource | null>(null);
 
   const canSend = useMemo(() => !busy && input.trim().length > 0, [busy, input]);
@@ -171,12 +174,15 @@ export default function App() {
       }
     });
     wireSseEvent(es, "rag.retrieved", (p, r) => onAny("rag.retrieved", p, r));
-    wireSseEvent(es, "tool.invoked", (p, r) => onAny("tool.invoked", p, r));
-    wireSseEvent(es, "tool.result", (p, r) => onAny("tool.result", p, r));
     wireSseEvent(es, "approval.requested", (p, r) => {
       onAny("approval.requested", p, r);
-      const aid = p.detail?.approvalId;
-      appendMessage("system", `需要审批 approvalId=${String(aid)} action=${String(p.detail?.action ?? "")}`);
+      const aid = String(p.detail?.approvalId ?? "");
+      const action = String(p.detail?.action ?? "");
+      const toolName = String(p.detail?.toolName ?? "");
+      if (aid) {
+        setPendingApproval({ approvalId: aid, action, toolName });
+      }
+      appendMessage("system", `需要审批：tool=${toolName || "unknown"} approvalId=${aid}`);
     });
 
     wireSseEvent(es, "run.completed", (p, r) => {
@@ -195,6 +201,9 @@ export default function App() {
       const reason = String(p.detail?.reason ?? "UNKNOWN");
       const message = String(p.detail?.message ?? "运行失败");
       appendMessage("system", `运行失败(${reason})：${message}`);
+      if (reason !== "APPROVAL_REQUIRED") {
+        setPendingApproval(null);
+      }
       setBusy(false);
       es.close();
     });
@@ -204,6 +213,37 @@ export default function App() {
       setBusy(false);
       es.close();
     };
+  };
+
+  const resolveApproval = async (decision: "APPROVED" | "REJECTED") => {
+    if (!pendingApproval) return;
+    setApprovalBusy(true);
+    try {
+      const res = await fetch(`${API_BASE}/approvals/${encodeURIComponent(pendingApproval.approvalId)}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, resolvedBy: "frontend" }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || `HTTP ${res.status}`);
+      }
+      if (decision === "APPROVED") {
+        appendMessage("system", `审批已通过：${pendingApproval.toolName || pendingApproval.action}`);
+        if (runId) {
+          appendMessage("system", `开始重试 run=${runId}`);
+          setBusy(true);
+          startSse(runId);
+        }
+      } else {
+        appendMessage("system", `审批已拒绝：${pendingApproval.toolName || pendingApproval.action}`);
+      }
+      setPendingApproval(null);
+    } catch (e) {
+      appendMessage("system", `审批提交失败：${String(e)}`);
+    } finally {
+      setApprovalBusy(false);
+    }
   };
 
   const sendPrompt = async () => {
@@ -287,7 +327,7 @@ export default function App() {
     <div style={{ fontFamily: "system-ui, sans-serif", padding: 20, maxWidth: 1280, margin: "0 auto" }}>
       <h1 style={{ marginBottom: 4 }}>Nexus Agent 调试台</h1>
       <p style={{ color: "#555", marginTop: 0, fontSize: 14 }}>
-        聊天联调 DeepSeek · SSE 展示 <strong>RAG</strong> / <strong>工具与 MCP</strong>（经 <code>execute_tool</code>）/ 审批 · 右侧可拉工具列表并直接 invoke。
+        聊天联调 DeepSeek · SSE 展示 <strong>RAG</strong> / 审批 · 右侧可拉工具列表并直接 invoke。
       </p>
 
       <div
@@ -314,6 +354,31 @@ export default function App() {
               <strong>lastEvent</strong>: {lastEvent}
             </div>
           </div>
+          {pendingApproval && (
+            <div
+              style={{
+                marginBottom: 12,
+                border: "1px solid #e6b800",
+                background: "#fff9e6",
+                borderRadius: 8,
+                padding: 10,
+                fontSize: 13,
+              }}
+            >
+              <div style={{ marginBottom: 6 }}>
+                <strong>待审批</strong>：{pendingApproval.toolName || pendingApproval.action}
+              </div>
+              <div style={{ marginBottom: 8, color: "#444" }}>approvalId: {pendingApproval.approvalId}</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" onClick={() => void resolveApproval("APPROVED")} disabled={approvalBusy}>
+                  {approvalBusy ? "提交中…" : "批准并重试"}
+                </button>
+                <button type="button" onClick={() => void resolveApproval("REJECTED")} disabled={approvalBusy}>
+                  {approvalBusy ? "提交中…" : "拒绝"}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div
             style={{
@@ -502,7 +567,7 @@ export default function App() {
               }}
             >
               {filteredLog.length === 0 ? (
-                <span style={{ color: "#888" }}>发送一次对话后，此处显示 rag.retrieved / tool.* / approval.* 等</span>
+                <span style={{ color: "#888" }}>发送一次对话后，此处显示 run.* / reasoning.step / rag.retrieved / approval.* 等</span>
               ) : (
                 filteredLog.map((e) => (
                   <div key={e.id} style={{ marginBottom: 10, borderBottom: "1px solid #333", paddingBottom: 8 }}>
