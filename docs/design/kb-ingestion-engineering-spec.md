@@ -28,7 +28,7 @@
 
 ## 3.1 必做
 
-- 支持输入 Markdown/TXT/PDF 文件。
+- 支持输入 Markdown/TXT 文件（MVP）。
 - 固定切片策略（字符窗口 + overlap）。
 - 调用 Embedding 模型完成向量化。
 - 向 Chroma Upsert chunk 向量。
@@ -100,6 +100,7 @@ mvn -pl backend spring-boot:run -Dspring-boot.run.arguments="--kb.build.enabled=
 
 - 从每个 chunk 提取实体和关系，输出三元组：
   - `(subject)-[relation]->(object)`
+- 检索侧采用“Cypher 模板 + 槽位填充”，MVP 不做 LLM 自由生成 Cypher。
 - Neo4j 写入策略：
   - 节点：`MERGE (n:Entity {name: $name, kbId: $kbId})`
   - 关系：`MERGE (a)-[r:REL {type: $type, kbId: $kbId}]->(b)`
@@ -140,6 +141,7 @@ kb:
     chunk-size: 600
     chunk-overlap: 80
     embedding-model: bge-m3
+    embedding-provider: openai # openai 或 tei
     vector:
       provider: chroma
       endpoint: http://localhost:8000
@@ -150,6 +152,12 @@ kb:
       username: neo4j
       password: ${NEO4J_PASSWORD:}
 ```
+
+如使用本地 TEI（bge-m3），建议配置：
+
+- `kb.build.embedding.provider=tei`
+- `kb.build.embedding.base-url=http://localhost:18080`
+- `kb.build.embedding.tei-path=/embed`
 
 ---
 

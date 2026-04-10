@@ -55,6 +55,21 @@ agent:
       model: text-embedding-3-small
       timeout-ms: 15000
       max-retries: 1
+    hybrid:
+      query2doc:
+        enabled: false
+        max-queries: 3
+      parallel:
+        threads: 6
+        task-timeout-ms: 1800
+        route-timeout-ms: 2500
+      rerank:
+        enabled: false
+        endpoint: http://localhost:18081
+        path: /rerank
+        timeout-ms: 1800
+        candidate-top-k: 20
+        weight: 0.75
     elastic:
       base-url: ""
       index: agent_knowledge_chunks
@@ -65,3 +80,30 @@ agent:
     circuit-breaker-enabled: true
     circuit-failure-threshold: 3
     circuit-open-ms: 30000
+
+kb:
+  build:
+    enabled: false
+    exit-after-run: true
+    kb-id: default_kb
+    input: docs/kb/*.md
+    chunk-size: 600
+    chunk-overlap: 80
+    embedding:
+      provider: openai
+      base-url: ""
+      api-key: ""
+      model: text-embedding-3-small
+      timeout-ms: 15000
+      max-retries: 1
+      tei-path: /embed
+    vector:
+      endpoint: http://localhost:8000
+      collection: nexus_kb
+      upsert-path-template: /api/v1/collections/%s/upsert
+    graph:
+      endpoint: http://localhost:7474
+      username: neo4j
+      password: ""
+      tx-path: /db/neo4j/tx/commit
+      max-triples-per-chunk: 20

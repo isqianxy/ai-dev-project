@@ -14,9 +14,27 @@
 | 模型 | `agent.llm.provider`：`mock` / `deepseek`（OpenAI 兼容），支持 **Function Calling** |
 | 工具 | 本地注册工具 + 可选 **MCP**（stdio）；统一 `ToolProvider` 路由；工具风险分级与审批联动 |
 | 记忆 | 滑窗上下文；`agent.memory.provider`：**in_memory** / **redis** |
-| RAG | `agent.rag.provider`：**mock** / **local_vector** / **elastic**（可降级，不阻断主链路） |
+| RAG（Hybrid） | 以 **`docs/design/rag-hybrid-rebuild-spec.md`** 为实施基线：LangChain4j **Advanced RAG**（`RetrievalAugmentor` 编排）；**Chroma** 向量检索 + **Neo4j** 图检索并行召回，聚合去重后注入上下文；分支失败可降级、不阻断 Run。详见下文「RAG 工程」。 |
+| 知识库构建 `kb.build` | 可选离线流水线：文档分块、嵌入写入 **Chroma**，结构化三元组写入 **Neo4j**（如 `:Entity` 节点）；与 Hybrid 检索的数据面一致；配置见 `application.yml` |
 | 前端 `frontend/` | Vite + React：会话、提交 Run、**SSE 调试面板**（事件过滤、trace、工具列表与调试调用） |
 | 契约 | `docs/api/openapi.yaml` 为对外 API 单一事实来源 |
+
+### RAG 工程（与开发文档一致）
+
+本仓库 RAG 侧**不以延续旧版 `mock` / `local_vector` / `elastic` 兼容实现为长期目标**，主链路按 [**RAG 重构技术方案**](docs/design/rag-hybrid-rebuild-spec.md) 落地，并与 [**ragProject（Hybrid 方案摘要）**](docs/design/ragProject.md) 对齐。
+
+**架构要点（LangChain4j Advanced RAG）：**
+
+- **QueryTransformer**：Query2Doc 扩写 + 实体链接，输出多路查询。
+- **QueryRouter**：将查询路由到向量与图两类 **ContentRetriever**。
+- **ContentRetriever**：**Chroma**（向量 Top-K）与 **Neo4j**（模板 Cypher + 有限跳数路径，MVP 不自由生成 Cypher）。
+- **ContentAggregator**：融合、去重、RRF/加权与可选 rerank，再按 `top-k-final` 截断。
+- **ContentInjector**：将 Top-N 结果带 **来源元数据**（如 `chunkId` / `source`）注入用户消息。
+- **RetrievalAugmentor**：统一编排入口，替代手工拼接 RAG 上下文。
+
+**运行时约束：** 向量与图路径**并行**执行；注入内容须**可追溯**；任一分支失败时**降级**（如 Graph 失败走 Vector-only），双路失败则空上下文继续主链路。可观测性保留 SSE 事件 **`rag.retrieved`**（载荷结构以方案文档第 7 节为准）。
+
+**配置与实施顺序：** 规范化的 `agent.rag.advanced.*` 等配置模型见方案文档 **§6**；开发顺序与验收见 **§9–§10**。
 
 ## 本地运行（无 Docker）
 
@@ -43,8 +61,14 @@
 
 ![Redis 记忆存储](docs/images/runtime-redis-memory.png)
 
+### Neo4j 知识图谱（Browser 示例）
+
+下图来自 **Neo4j Browser**：使用 `MATCH (n:Entity) RETURN n LIMIT 200` 查看知识库中的实体节点及其关系（示例数据中 `kbId` 为 `company_kd`）。实际节点属性与规模取决于构建配置与入库文档。
+
+![Neo4j 知识库图谱示例](docs/images/neo4j-kb-graph.png)
+
 ## 文档
 
 - 产品：`docs/prd/prd.md`
-- 设计：`docs/design/`
+- 设计：`docs/design/`（RAG 实施基线：**`docs/design/rag-hybrid-rebuild-spec.md`**；知识库入库：**`docs/design/kb-ingestion-engineering-spec.md`**）
 - 计划与里程碑：`docs/plan/work-plan.md`

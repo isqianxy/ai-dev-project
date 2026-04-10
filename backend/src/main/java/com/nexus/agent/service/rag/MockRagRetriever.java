@@ -16,11 +16,11 @@ import java.util.Locale;
 public class MockRagRetriever implements RagRetriever {
 
     private static final List<RagSnippet> KB = List.of(
-            new RagSnippet("kb://agent/overview", "Nexus Agent 支持会话、运行、SSE 事件流与工具调用。", 0.9),
-            new RagSnippet("kb://agent/tools", "工具系统支持 function calling，工具有风险等级与审批联动。", 0.9),
-            new RagSnippet("kb://agent/memory", "记忆层支持短期滑窗，提供 in_memory/redis 可切换存储。", 0.9),
-            new RagSnippet("kb://agent/observability", "可观测性提供 traceId 贯穿事件链，便于排障。", 0.9),
-            new RagSnippet("kb://agent/rag", "RAG 检索在 THINK 前注入上下文，失败时可降级为空。", 0.9)
+            new RagSnippet("kb://agent/overview", "mock", "Nexus Agent 支持会话、运行、SSE 事件流与工具调用。", 0.9),
+            new RagSnippet("kb://agent/tools", "mock", "工具系统支持 function calling，工具有风险等级与审批联动。", 0.9),
+            new RagSnippet("kb://agent/memory", "mock", "记忆层支持短期滑窗，提供 in_memory/redis 可切换存储。", 0.9),
+            new RagSnippet("kb://agent/observability", "mock", "可观测性提供 traceId 贯穿事件链，便于排障。", 0.9),
+            new RagSnippet("kb://agent/rag", "mock", "RAG 检索在 THINK 前注入上下文，失败时可降级为空。", 0.9)
     );
 
     @Override

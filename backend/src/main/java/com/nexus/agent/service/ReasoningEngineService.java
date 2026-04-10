@@ -589,6 +589,12 @@ public class ReasoningEngineService {
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("provider", ragResult.provider());
         detail.put("hitCount", ragResult.hits().size());
+        detail.put("retrieverRoutes", ragResult.retrieverRoutes());
+        detail.put("candidateCount", ragResult.candidateCount());
+        detail.put("finalCount", ragResult.finalCount());
+        detail.put("latencyMs", ragResult.latencyMs());
+        detail.put("degraded", ragResult.degraded());
+        detail.put("fallbackReason", ragResult.fallbackReason());
         detail.put("sources", ragResult.hits().stream().map(s -> s.source()).toList());
         send(
                 emitter,

@@ -176,6 +176,11 @@
       "description": "Embedding 模型服务地址（OpenAI 兼容）。"
     },
     {
+      "name": "agent.rag.embedding.provider",
+      "type": "java.lang.String",
+      "description": "Embedding 提供方（openai/tei）。"
+    },
+    {
       "name": "agent.rag.embedding.api-key",
       "type": "java.lang.String",
       "description": "Embedding 模型服务 API Key。"
@@ -194,6 +199,11 @@
       "name": "agent.rag.embedding.max-retries",
       "type": "java.lang.Integer",
       "description": "Embedding 调用最大重试次数。"
+    },
+    {
+      "name": "agent.rag.embedding.tei-path",
+      "type": "java.lang.String",
+      "description": "TEI embedding 接口路径，默认 /embed。"
     },
     {
       "name": "agent.rag.elastic.base-url",
@@ -219,6 +229,236 @@
       "name": "agent.rag.elastic.password",
       "type": "java.lang.String",
       "description": "Elasticsearch Basic Auth 密码。"
+    },
+    {
+      "name": "agent.rag.hybrid.kb-id",
+      "type": "java.lang.String",
+      "description": "Hybrid RAG 的知识库标识。"
+    },
+    {
+      "name": "agent.rag.hybrid.vector-top-k",
+      "type": "java.lang.Integer",
+      "description": "Hybrid 向量分支召回条数。"
+    },
+    {
+      "name": "agent.rag.hybrid.graph-top-k",
+      "type": "java.lang.Integer",
+      "description": "Hybrid 图分支召回条数。"
+    },
+    {
+      "name": "agent.rag.hybrid.vector-weight",
+      "type": "java.lang.Double",
+      "description": "Hybrid 融合时向量分支权重。"
+    },
+    {
+      "name": "agent.rag.hybrid.graph-weight",
+      "type": "java.lang.Double",
+      "description": "Hybrid 融合时图分支权重。"
+    },
+    {
+      "name": "agent.rag.hybrid.query2doc.enabled",
+      "type": "java.lang.Boolean",
+      "description": "是否启用基于 LLM 的 Query2Doc 查询扩写。"
+    },
+    {
+      "name": "agent.rag.hybrid.query2doc.max-queries",
+      "type": "java.lang.Integer",
+      "description": "LLM Query2Doc 生成的最大查询数。"
+    },
+    {
+      "name": "agent.rag.hybrid.parallel.threads",
+      "type": "java.lang.Integer",
+      "description": "Hybrid 检索并行线程池大小。"
+    },
+    {
+      "name": "agent.rag.hybrid.parallel.task-timeout-ms",
+      "type": "java.lang.Integer",
+      "description": "Hybrid 单个并行检索任务超时（毫秒）。"
+    },
+    {
+      "name": "agent.rag.hybrid.parallel.route-timeout-ms",
+      "type": "java.lang.Integer",
+      "description": "Hybrid 单个检索路由总超时（毫秒）。"
+    },
+    {
+      "name": "agent.rag.hybrid.rerank.enabled",
+      "type": "java.lang.Boolean",
+      "description": "是否启用 Post-Retrieve rerank。"
+    },
+    {
+      "name": "agent.rag.hybrid.rerank.endpoint",
+      "type": "java.lang.String",
+      "description": "Rerank 服务地址。"
+    },
+    {
+      "name": "agent.rag.hybrid.rerank.path",
+      "type": "java.lang.String",
+      "description": "Rerank 接口路径，默认 /rerank。"
+    },
+    {
+      "name": "agent.rag.hybrid.rerank.timeout-ms",
+      "type": "java.lang.Integer",
+      "description": "Rerank 请求超时（毫秒）。"
+    },
+    {
+      "name": "agent.rag.hybrid.rerank.candidate-top-k",
+      "type": "java.lang.Integer",
+      "description": "进入 rerank 的候选数量上限。"
+    },
+    {
+      "name": "agent.rag.hybrid.rerank.weight",
+      "type": "java.lang.Double",
+      "description": "Rerank 分数融合权重（0-1）。"
+    },
+    {
+      "name": "agent.rag.hybrid.chroma.endpoint",
+      "type": "java.lang.String",
+      "description": "Hybrid Chroma 服务地址。"
+    },
+    {
+      "name": "agent.rag.hybrid.chroma.collection",
+      "type": "java.lang.String",
+      "description": "Hybrid Chroma 集合名称。"
+    },
+    {
+      "name": "agent.rag.hybrid.chroma.timeout-ms",
+      "type": "java.lang.Integer",
+      "description": "Hybrid Chroma 请求超时（毫秒）。"
+    },
+    {
+      "name": "agent.rag.hybrid.neo4j.endpoint",
+      "type": "java.lang.String",
+      "description": "Hybrid Neo4j HTTP 端点。"
+    },
+    {
+      "name": "agent.rag.hybrid.neo4j.username",
+      "type": "java.lang.String",
+      "description": "Hybrid Neo4j 用户名。"
+    },
+    {
+      "name": "agent.rag.hybrid.neo4j.password",
+      "type": "java.lang.String",
+      "description": "Hybrid Neo4j 密码。"
+    },
+    {
+      "name": "agent.rag.hybrid.neo4j.tx-path",
+      "type": "java.lang.String",
+      "description": "Hybrid Neo4j HTTP 提交路径。"
+    },
+    {
+      "name": "agent.rag.hybrid.neo4j.max-depth",
+      "type": "java.lang.Integer",
+      "description": "Hybrid 图检索最大 hop 深度。"
+    },
+    {
+      "name": "agent.rag.hybrid.neo4j.timeout-ms",
+      "type": "java.lang.Integer",
+      "description": "Hybrid Neo4j 请求超时（毫秒）。"
+    },
+    {
+      "name": "kb.build.enabled",
+      "type": "java.lang.Boolean",
+      "description": "是否启用独立知识库构建模式。"
+    },
+    {
+      "name": "kb.build.exit-after-run",
+      "type": "java.lang.Boolean",
+      "description": "构建完成后是否自动退出进程。"
+    },
+    {
+      "name": "kb.build.kb-id",
+      "type": "java.lang.String",
+      "description": "本次构建的知识库标识。"
+    },
+    {
+      "name": "kb.build.input",
+      "type": "java.lang.String",
+      "description": "待构建文档输入路径（支持 glob）。"
+    },
+    {
+      "name": "kb.build.chunk-size",
+      "type": "java.lang.Integer",
+      "description": "文档切片大小。"
+    },
+    {
+      "name": "kb.build.chunk-overlap",
+      "type": "java.lang.Integer",
+      "description": "文档切片重叠大小。"
+    },
+    {
+      "name": "kb.build.embedding.provider",
+      "type": "java.lang.String",
+      "description": "Embedding 提供方（openai/tei）。"
+    },
+    {
+      "name": "kb.build.embedding.base-url",
+      "type": "java.lang.String",
+      "description": "Embedding 服务地址（OpenAI 兼容）。"
+    },
+    {
+      "name": "kb.build.embedding.api-key",
+      "type": "java.lang.String",
+      "description": "Embedding 服务 API Key。"
+    },
+    {
+      "name": "kb.build.embedding.model",
+      "type": "java.lang.String",
+      "description": "Embedding 模型名。"
+    },
+    {
+      "name": "kb.build.embedding.timeout-ms",
+      "type": "java.lang.Integer",
+      "description": "Embedding 请求超时（毫秒）。"
+    },
+    {
+      "name": "kb.build.embedding.max-retries",
+      "type": "java.lang.Integer",
+      "description": "Embedding 最大重试次数。"
+    },
+    {
+      "name": "kb.build.embedding.tei-path",
+      "type": "java.lang.String",
+      "description": "TEI embedding 接口路径，默认 /embed。"
+    },
+    {
+      "name": "kb.build.vector.endpoint",
+      "type": "java.lang.String",
+      "description": "Chroma 服务地址。"
+    },
+    {
+      "name": "kb.build.vector.collection",
+      "type": "java.lang.String",
+      "description": "Chroma 集合名。"
+    },
+    {
+      "name": "kb.build.vector.upsert-path-template",
+      "type": "java.lang.String",
+      "description": "Chroma upsert API 路径模板。"
+    },
+    {
+      "name": "kb.build.graph.endpoint",
+      "type": "java.lang.String",
+      "description": "Neo4j HTTP 端点地址。"
+    },
+    {
+      "name": "kb.build.graph.username",
+      "type": "java.lang.String",
+      "description": "Neo4j 用户名。"
+    },
+    {
+      "name": "kb.build.graph.password",
+      "type": "java.lang.String",
+      "description": "Neo4j 密码。"
+    },
+    {
+      "name": "kb.build.graph.tx-path",
+      "type": "java.lang.String",
+      "description": "Neo4j HTTP 事务提交路径。"
+    },
+    {
+      "name": "kb.build.graph.max-triples-per-chunk",
+      "type": "java.lang.Integer",
+      "description": "每个 chunk 的三元组抽取上限。"
     }
   ]
 }

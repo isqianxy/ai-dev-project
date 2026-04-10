@@ -1,0 +1,62 @@
+services:
+  # --- 向量数据库 ---
+  chroma:
+    image: chromadb/chroma:0.5.5
+    container_name: rag-chroma
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      ANONYMIZED_TELEMETRY: "FALSE"
+    volumes:
+      - chroma_data:/chroma/chroma
+
+  # --- 图数据库 ---
+  neo4j:
+    image: neo4j:5.20.0
+    container_name: rag-neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474" # HTTP
+      - "7687:7687" # Bolt
+    environment:
+      NEO4J_AUTH: "neo4j/password123" # 请按需修改
+      NEO4J_PLUGINS: '["apoc"]'
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_plugins:/plugins
+
+  # --- BGE-M3 Embedding 模型（TEI 协议） ---
+  # 注意：当前后端 kb.build.embedding.* 使用 OpenAI-compatible 客户端；
+  # 如直接对接 TEI，请补充协议适配或切换到 OpenAI-compatible Embedding 服务。
+  bge-m3:
+    image: ghcr.io/huggingface/text-embeddings-inference:cuda-latest
+    container_name: rag-bge-m3
+    restart: unless-stopped
+    gpus: all
+    ports:
+      - "18080:80"
+    volumes:
+      - hf_cache_m3:/data
+    command: --model-id BAAI/bge-m3 --dtype float16 --tokenization-workers 4 --max-concurrent-requests 64 --max-batch-tokens 8192
+
+  # --- BGE Reranker 模型（TEI 协议） ---
+  bge-reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:cuda-latest
+    container_name: rag-bge-reranker
+    restart: unless-stopped
+    gpus: all
+    ports:
+      - "18081:80"
+    volumes:
+      - hf_cache_reranker:/data
+    command: --model-id BAAI/bge-reranker-v2-m3 --dtype float16 --tokenization-workers 2 --max-concurrent-requests 32 --max-batch-tokens 2048
+
+volumes:
+  chroma_data:
+  neo4j_data:
+  neo4j_logs:
+  neo4j_plugins:
+  hf_cache_m3:
+  hf_cache_reranker:

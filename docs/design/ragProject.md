@@ -74,3 +74,26 @@ rag:
   graph:
     max-depth: 2
     timeout-ms: 2000
+
+7.知识库构建链路
+7.1 向量数据库构建链路 (Ingestion)
+该链路负责将非结构化文档转化为结构化向量并存入 Chroma。
+
+Document Loading: 使用 FileSystemDocumentLoader 载入 PDF/Markdown 等文档。
+
+Text Splitting: 采用 DocumentByParagraphSplitter 或 RecursiveCharacterSplitter，建议分片大小为 500-800 字符，重叠度 10%。
+
+Embedding: 通过 BgeM3EmbeddingModel (自定义实现或通过 OpenAI 兼容接口) 进行向量化。
+
+Storage: 存入 Chroma，并关联元数据（文件名、页码、最后更新时间）。
+
+7.1 知识图谱构建链路 (Ingestion)
+该链路负责从文档中提取结构化关系。
+
+Entity Extraction: 利用 LLM 识别文本中的实体（人名、产品、概念等）。
+
+Relationship Extraction: 识别实体间的逻辑关系（属于、位于、依赖于）。
+
+Graph Generation: 使用 Neo4jContentStore 将实体和关系写入 Neo4j。
+
+Schema Definition: 预定义图模式（Label 和 Relationship Type），确保数据一致性。

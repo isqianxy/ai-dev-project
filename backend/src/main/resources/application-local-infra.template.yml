@@ -19,19 +19,32 @@ spring:
 
 agent:
   rag:
-    # 本地链路打通建议先用 local_vector（不依赖 ES）
-    provider: local_vector
+    # Hybrid RAG 主链路
+    provider: hybrid
+    top-k: 5
     embedding:
-      # 常用向量模型：text-embedding-3-small（OpenAI 兼容）
-      base-url: https://api.openai.com/v1
-      api-key: "<YOUR_EMBEDDING_API_KEY>"
-      model: text-embedding-3-small
+      # provider=openai 或 tei（二选一）
+      provider: tei
+      base-url: http://127.0.0.1:18080
+      api-key: ""
+      model: BAAI/bge-m3
       timeout-ms: 15000
       max-retries: 1
-    # 后续接入 ES 时再切 provider=elastic，并填写以下连接参数
-    elastic:
-      base-url: http://127.0.0.1:9200
-      index: agent_knowledge_chunks
-      api-key: "<YOUR_ELASTIC_API_KEY>"
-      username: ""
-      password: ""
+      tei-path: /embed
+    hybrid:
+      kb-id: company_kd
+      vector-top-k: 10
+      graph-top-k: 10
+      vector-weight: 0.7
+      graph-weight: 0.3
+      chroma:
+        endpoint: http://127.0.0.1:8000
+        collection: nexus_kb_1024
+        timeout-ms: 1200
+      neo4j:
+        endpoint: http://127.0.0.1:7474
+        username: neo4j
+        password: "<YOUR_NEO4J_PASSWORD>"
+        tx-path: /db/neo4j/tx/commit
+        max-depth: 2
+        timeout-ms: 1200
